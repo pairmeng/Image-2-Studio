@@ -69,9 +69,9 @@ $env:NEXT_STANDALONE="true"; pnpm.cmd run build
 
 镜像发布按用途拆开：
 
-- 日常开发使用 `pnpm.cmd run publish:dev`，只推送 `dev-latest` 和 `dev-<short-sha>`。
+- 日常开发使用 `pnpm.cmd run publish:dev` 从本地触发 GitHub Actions，只推送 `dev-latest` 和 `dev-<short-sha>`。
 - 生产环境继续拉取 `latest`。
-- `latest` 只允许由正式发布的手动 workflow 更新，且发布 ref 必须是 `v*`。
+- `latest` 由推送 `v*` tag 的正式发布流程自动更新。
 
 ```text
 ghcr.io/pairmeng/image-2-studio:dev-latest
@@ -207,13 +207,17 @@ DOCKER_DATABASE_URL=postgresql://db_user:db_password@db_host:5432/db_name?schema
 
 ### 5. 更新
 
-日常测试镜像从干净的本地工作区发布：
+日常测试镜像不需要本机安装 Docker。它从干净的本地工作区触发 GitHub Actions 发布，先执行本地验证，再让远端 workflow 构建并推送 dev 镜像。
+
+发布前先提交改动并推送 `main`，确保当前 `HEAD` 已经在 `origin/main`：
 
 ```powershell
+git status --short
+git push origin main
 pnpm.cmd run publish:dev
 ```
 
-这个命令会先执行验证，然后推送：
+这个命令会检查 `gh auth status`、要求工作区干净，并触发 `docker-image.yml` 的 `channel=dev`。远端 workflow 会推送：
 
 ```text
 ghcr.io/pairmeng/image-2-studio:dev-latest
@@ -222,28 +226,34 @@ ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
 
 它不会更新生产 `latest`。
 
-正式发布时，先确保发布提交已经在 `main`，然后创建并推送版本 tag：
+查看远端运行记录：
 
-```bash
+```powershell
+gh run list --workflow docker-image.yml --limit 5
+```
+
+如果你已经安装 Docker Desktop，并且明确想在本机直接构建镜像，可以使用：
+
+```powershell
+pnpm.cmd run publish:dev:docker
+```
+
+正式发布时，先确保发布提交已经在 `main`，然后创建并推送版本 tag。推送 tag 会自动发布生产镜像：
+
+```powershell
+pnpm.cmd run verify
 git tag -a v1.2.23 -m "v1.2.23"
 git push origin v1.2.23
 ```
 
-推送 tag 只会运行 Docker build 校验，不会自动发布生产镜像。要发布生产镜像，需要在 GitHub Actions 手动运行 `Build and Publish Docker Image` workflow，选择 branch `main`，并填写：
-
-```text
-ref: v1.2.23
-publish: true
-```
-
-手动发布会推送：
+tag push workflow 会推送：
 
 ```text
 ghcr.io/pairmeng/image-2-studio:v1.2.23
 ghcr.io/pairmeng/image-2-studio:latest
 ```
 
-手动 workflow 成功后，再到服务器更新。
+Actions 成功后，再到服务器更新。
 
 一行更新命令：
 
@@ -281,7 +291,7 @@ pnpm.cmd run test:e2e
 
 E2E smoke test 会 mock 生图接口，不会调用真实供应商。
 
-手动发布 workflow 成功后，在 Docker 主机上验证默认运行时：
+tag 发布 workflow 成功后，在 Docker 主机上验证默认运行时：
 
 ```bash
 docker compose pull

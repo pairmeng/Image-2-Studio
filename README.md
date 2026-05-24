@@ -38,15 +38,33 @@ pnpm.cmd run test:e2e
 
 ## Docker Images
 
-Daily development publishing pushes only test tags:
+Daily development publishing does not require local Docker. It triggers GitHub Actions from your local machine, runs the normal verification first, then publishes only dev image tags.
+
+Before publishing, commit your changes and push `main` so local `HEAD` matches `origin/main`:
 
 ```powershell
+git status --short
+git push origin main
 pnpm.cmd run publish:dev
 ```
+
+The script checks `gh auth status`, requires a clean working tree, and triggers `docker-image.yml` with `channel=dev`. The workflow publishes:
 
 ```text
 ghcr.io/pairmeng/image-2-studio:dev-latest
 ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
+```
+
+To inspect the remote run:
+
+```powershell
+gh run list --workflow docker-image.yml --limit 5
+```
+
+If you have Docker Desktop installed and intentionally want to build locally, use:
+
+```powershell
+pnpm.cmd run publish:dev:docker
 ```
 
 Production servers continue to use:
@@ -55,7 +73,22 @@ Production servers continue to use:
 IMAGE_TAG=latest
 ```
 
-`latest` is updated only by manually running the `Build and Publish Docker Image` GitHub Actions workflow with a `v*` ref and `publish=true`.
+`latest` is updated automatically when a `v*` tag is pushed.
+
+Production release flow:
+
+```powershell
+pnpm.cmd run verify
+git tag -a v1.2.23 -m "v1.2.23"
+git push origin v1.2.23
+```
+
+The tag workflow publishes:
+
+```text
+ghcr.io/pairmeng/image-2-studio:v1.2.23
+ghcr.io/pairmeng/image-2-studio:latest
+```
 
 ## Project Layout
 

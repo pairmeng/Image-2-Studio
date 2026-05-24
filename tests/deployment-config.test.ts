@@ -26,28 +26,38 @@ describe("deployment configuration guardrails", () => {
     assert.match(workflow, /APP_VERSION=\$\{\{ steps\.meta\.outputs\.version \}\}/);
   });
 
-  it("keeps Docker image publishing manually controlled", () => {
+  it("keeps pull requests non-publishing while allowing controlled manual publishing", () => {
     const workflow = read(".github/workflows/docker-image.yml");
 
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /ref:\s*\n\s+description: Branch, tag, or commit to build/);
     assert.match(workflow, /publish:\s*\n\s+description: Push the built image to GHCR/);
+    assert.match(workflow, /channel:\s*\n\s+description: Image publish channel/);
+    assert.match(workflow, /default: dev/);
+    assert.match(workflow, /-\s+dev/);
+    assert.match(workflow, /-\s+release/);
     assert.match(workflow, /type: boolean/);
     assert.match(workflow, /default: false/);
-    assert.match(workflow, /if: github\.event_name == 'workflow_dispatch' && inputs\.publish/);
+    assert.match(
+      workflow,
+      /if: \(github\.event_name == 'workflow_dispatch' && inputs\.publish\) \|\| \(github\.event_name == 'push' && startsWith\(github\.ref, 'refs\/tags\/v'\)\)/,
+    );
     assert.match(workflow, /push: \$\{\{ steps\.meta\.outputs\.publish == 'true' \}\}/);
-    assert.doesNotMatch(workflow, /push: \$\{\{ github\.event_name == 'push' && startsWith\(github\.ref, 'refs\/tags\/v'\) \}\}/);
   });
 
-  it("publishes latest only for manual version refs", () => {
+  it("publishes dev tags manually and latest for release tags", () => {
     const workflow = read(".github/workflows/docker-image.yml");
 
+    assert.match(workflow, /channel="\$\{SELECTED_CHANNEL:-dev\}"/);
+    assert.match(workflow, /short_sha="\$\(git rev-parse --short HEAD\)"/);
+    assert.match(workflow, /version="dev-\$\{short_sha\}"/);
+    assert.match(workflow, /tags="\$\{IMAGE_NAME\}:dev-latest,\$\{IMAGE_NAME\}:dev-\$\{short_sha\}"/);
     assert.match(workflow, /version="\$\{ref#refs\/tags\/\}"/);
     assert.match(workflow, /version="\$\{version#refs\/heads\/\}"/);
     assert.match(workflow, /version="\$\{version\/\/\\\/\/-\}"/);
-    assert.match(workflow, /if \[\[ "\$\{publish\}" == "true" && "\$\{version\}" == v\* \]\]; then/);
+    assert.match(workflow, /Release publishing requires a v\* ref/);
     assert.match(workflow, /tags="\$\{tags\},\$\{IMAGE_NAME\}:latest"/);
-    assert.match(workflow, /tags="\$\{IMAGE_NAME\}:\$\{GITHUB_REF_NAME\}"/);
+    assert.match(workflow, /publish="true"\s+tags="\$\{IMAGE_NAME\}:\$\{GITHUB_REF_NAME\},\$\{IMAGE_NAME\}:latest"/);
   });
 
   it("uses the public npm registry for Docker dependency installs", () => {
@@ -72,12 +82,22 @@ describe("deployment configuration guardrails", () => {
 
   it("keeps local dev image publishing separate from production latest", () => {
     const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+    const actionScript = read("scripts/publish-dev-action.ps1");
     const publishScript = read("scripts/publish-image.ps1");
 
     assert.equal(
       packageJson.scripts?.["publish:dev"],
+      "powershell -ExecutionPolicy Bypass -File scripts/publish-dev-action.ps1 -Verify -RequireClean",
+    );
+    assert.equal(
+      packageJson.scripts?.["publish:dev:docker"],
       "powershell -ExecutionPolicy Bypass -File scripts/publish-image.ps1 -Dev -Verify -RequireClean",
     );
+
+    assert.match(actionScript, /gh workflow run \$Workflow --ref \$WorkflowRef -f "ref=\$Ref" -f "channel=dev" -f "publish=true"/);
+    assert.match(actionScript, /Invoke-CheckedCommand pnpm\.cmd run verify/);
+    assert.match(actionScript, /Working tree is not clean/);
+    assert.match(actionScript, /Push main before publishing dev images/);
 
     assert.match(publishScript, /\[switch\]\$Dev/);
     assert.match(publishScript, /\[switch\]\$Verify/);
