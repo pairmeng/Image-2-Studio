@@ -41,10 +41,23 @@ export type CatalogResponse = {
   }>;
 };
 
-export type CreateImageResponse = {
+export type ImageJobStatus = "pending" | "running" | "succeeded" | "failed";
+
+export type CreateImageJobResponse = {
+  jobId: string;
+  status: ImageJobStatus;
+};
+
+export type ImageJobResponse = {
   id: string;
-  imageUrl: string;
+  status: ImageJobStatus;
   provider: ProviderId;
   model: string;
   mode: ImageMode;
+  resultId?: string;
+  imageUrl?: string;
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
 };

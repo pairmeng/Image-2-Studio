@@ -19,6 +19,7 @@ model User {
   sessions       Session[]
   providerConfig ProviderConfig?
   images         ImageRecord[]
+  imageJobs      ImageJob[]
   usage          UsageDaily[]
 }
 
@@ -66,6 +67,8 @@ model AppSetting {
   id                 String   @id @default("settings")
   registrationOpen   Boolean  @default(false)
   dailyPlatformQuota Int      @default(20)
+  siteTitle          String?
+  faviconUrl         String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -94,6 +97,28 @@ model ImageRecord {
   @@index([userId, createdAt])
   @@index([provider])
   @@index([model])
+}
+
+model ImageJob {
+  id          String    @id @default(cuid())
+  userId      String
+  status      String    @default("pending")
+  provider    String
+  model       String
+  mode        String
+  prompt      String
+  requestJson String
+  resultId    String?
+  error       String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model StoredImage {

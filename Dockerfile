@@ -35,7 +35,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
+RUN apk add --no-cache su-exec \
+  && addgroup -S nodejs \
+  && adduser -S nextjs -G nodejs
 
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
@@ -47,8 +49,6 @@ COPY --from=builder /app/scripts ./scripts
 RUN mkdir -p storage \
   && chmod +x scripts/*.sh \
   && chown -R nextjs:nodejs /app
-
-USER nextjs
 
 EXPOSE 3000
 

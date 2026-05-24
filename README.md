@@ -46,7 +46,7 @@ INITIAL_ADMIN_PASSWORD=replace-with-a-strong-admin-password
 
 Production deployment should use the prebuilt GHCR image. The server only pulls and starts the image; all package installation and image building happen before the image reaches the server.
 
-GitHub Actions builds and pushes this image only when a `v*` version tag is pushed, for example `v1.0.5`:
+GitHub Actions builds and pushes this image only when a `v*` version tag is pushed, for example `v1.0.6`:
 
 ```text
 ghcr.io/pairmeng/image-2-studio:latest
@@ -107,6 +107,12 @@ Do not use `AUTH_COOKIE_SECURE=false` for a real HTTPS deployment.
 
 ### 3. Start with Built-in PostgreSQL
 
+One-line start command:
+
+```bash
+docker compose pull image-2-studio && docker compose up -d && docker compose ps && docker compose logs -f image-2-studio
+```
+
 ```bash
 docker compose pull image-2-studio
 docker compose up -d
@@ -145,6 +151,12 @@ Keep `env_file: [.env]`, so the app reads the external `DATABASE_URL` from `.env
 
 Then start with the same Compose file:
 
+One-line start command:
+
+```bash
+docker compose pull image-2-studio && docker compose up -d && docker compose ps && docker compose logs -f image-2-studio
+```
+
 ```bash
 docker compose pull image-2-studio
 docker compose up -d
@@ -154,24 +166,22 @@ docker compose logs -f image-2-studio
 
 The external database account must be allowed to run Prisma migrations.
 
-### 5. Private GHCR Package
-
-If the GHCR package is private, log in on the server with a GitHub PAT that has `read:packages` permission:
-
-```bash
-echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u pairmeng --password-stdin
-```
-
-### 6. Update
+### 5. Update
 
 Publish a new image by creating and pushing a version tag after the release commit is on `main`:
 
 ```bash
-git tag -a v1.0.5 -m "v1.0.5"
-git push origin v1.0.5
+git tag -a v1.0.6 -m "v1.0.6"
+git push origin v1.0.6
 ```
 
 After GitHub Actions finishes, update the server.
+
+One-line update command:
+
+```bash
+docker compose pull image-2-studio && docker compose up -d && docker compose ps
+```
 
 Built-in PostgreSQL:
 
@@ -191,7 +201,7 @@ docker compose ps
 
 The container entrypoint runs Prisma migrations before starting Next.js.
 
-### 7. Roll Back
+### 6. Roll Back
 
 Set `IMAGE_TAG` in `.env` to an older version tag:
 
@@ -208,7 +218,7 @@ docker compose up -d
 
 For external PostgreSQL, use the edited `docker-compose.yml` described above.
 
-### 8. Health and Logs
+### 7. Health and Logs
 
 ```bash
 curl http://127.0.0.1:${APP_PORT:-3000}/api/health
@@ -218,7 +228,7 @@ docker compose logs -f image-2-studio
 
 For external PostgreSQL, use the edited `docker-compose.yml` described above.
 
-### 9. Stop
+### 8. Stop
 
 Stop but keep data:
 
@@ -262,7 +272,7 @@ For external PostgreSQL, use your database provider's backup and restore tooling
 
 ## Nginx Reverse Proxy
 
-Use HTTPS in production and proxy to the app port:
+Use HTTPS in production and proxy to the app port. Replace `3000` with the host `APP_PORT` from `.env`; for example, use `3111` when `APP_PORT=3111`.
 
 ```nginx
 server {
@@ -278,13 +288,23 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 300s;
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
+        send_timeout 300s;
     }
 }
 ```
 
 Image generation can take a while. Keep `proxy_read_timeout` at `300s` or higher to avoid premature `504 Gateway Time-out` responses.
+
+For 1Panel/OpenResty, add the same timeout directives to the website reverse proxy advanced configuration, then reload or restart OpenResty. If the browser fails at about 60 seconds but `docker compose logs -f image-2-studio` shows the generation request failing later, the site reverse proxy is closing the client request first. If the container log itself shows `524`, inspect the logged `baseUrlHost` and check the upstream gateway chain.
+
+If generated images fail to save, verify the mounted storage directory is writable by the app user:
+
+```bash
+docker compose exec -u nextjs image-2-studio sh -lc 'touch /app/storage/.write-test && rm /app/storage/.write-test'
+```
 
 ## Troubleshooting
 
@@ -294,15 +314,6 @@ Install the Docker Compose plugin and verify:
 
 ```bash
 docker compose version
-```
-
-### Pull from GHCR fails
-
-Check whether the package is private. If it is private, log in with a GitHub PAT that has `read:packages`.
-
-```bash
-echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u pairmeng --password-stdin
-docker compose pull image-2-studio
 ```
 
 ### Container is unhealthy or page does not open

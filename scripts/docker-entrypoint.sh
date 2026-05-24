@@ -16,6 +16,30 @@ if [ "${#APP_SECRET}" -lt 32 ]; then
   exit 1
 fi
 
-./node_modules/.bin/prisma migrate deploy --schema prisma/schema.active.prisma
+if ! mkdir -p /app/storage/generated /app/storage/uploads; then
+  echo "Startup failed: could not create /app/storage directories." >&2
+  echo "Check that the host ./storage mount is writable." >&2
+  exit 1
+fi
 
-exec ./node_modules/.bin/next start
+if ! chown -R nextjs:nodejs /app/storage; then
+  echo "Startup failed: could not change ownership of /app/storage to nextjs:nodejs." >&2
+  echo "Check the host ./storage directory permissions or filesystem support for chown." >&2
+  exit 1
+fi
+
+if ! chmod -R u+rwX,g+rwX /app/storage; then
+  echo "Startup failed: could not set write permissions on /app/storage." >&2
+  echo "Check the host ./storage directory permissions." >&2
+  exit 1
+fi
+
+if ! su-exec nextjs:nodejs sh -c 'touch /app/storage/.write-test && rm /app/storage/.write-test'; then
+  echo "Startup failed: /app/storage is not writable by the nextjs user." >&2
+  echo "Check the host ./storage directory permissions or the mounted volume configuration." >&2
+  exit 1
+fi
+
+su-exec nextjs:nodejs ./node_modules/.bin/prisma migrate deploy --schema prisma/schema.active.prisma
+
+exec su-exec nextjs:nodejs ./node_modules/.bin/next start
