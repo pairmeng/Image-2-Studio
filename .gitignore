@@ -4,6 +4,8 @@ node_modules/
 .pnpm-store/
 .codex/
 PROJECT_BRIEF.md
+DEVELOPMENT.local.md
+DEVELOPMENT.local.html
 dist/
 dist-worker/
 *.tsbuildinfo
