@@ -59,6 +59,17 @@ describe("deployment configuration guardrails", () => {
     assert.match(workflow, /NPM_REGISTRY:\s+https:\/\/registry\.npmjs\.org\//);
   });
 
+  it("keeps generated worker output out of source control inputs", () => {
+    const dockerfile = read("Dockerfile");
+    const gitignore = read(".gitignore");
+    const dockerignore = read(".dockerignore");
+
+    assert.match(gitignore, /^dist-worker\/$/m);
+    assert.match(dockerignore, /^dist-worker\/$/m);
+    assert.match(dockerfile, /pnpm build:worker/);
+    assert.match(dockerfile, /COPY --from=builder \/app\/dist-worker \.\/dist-worker/);
+  });
+
   it("keeps local dev image publishing separate from production latest", () => {
     const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
     const publishScript = read("scripts/publish-image.ps1");

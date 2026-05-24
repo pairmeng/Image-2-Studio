@@ -5,6 +5,7 @@ node_modules/
 .codex/
 PROJECT_BRIEF.md
 dist/
+dist-worker/
 *.tsbuildinfo
 .env
 .env*.local

@@ -448,7 +448,7 @@ src/components/studio/    Studio UI 组件和 UI 状态 hooks
 src/lib/server/           服务端数据库、认证、文件、供应商配置
 src/lib/server/providers/ OpenAI provider adapter
 src/worker/               图片 worker 的 TypeScript 入口
-dist-worker/              Docker 运行时使用的已跟踪 worker 构建产物
+dist-worker/              被忽略的 worker 构建输出，由 `pnpm run build:worker` 生成
 prisma/                   Prisma schema 和迁移
 scripts/                  Prisma 切换、Docker entrypoint 和镜像发布脚本
 tests/                    Node 测试
