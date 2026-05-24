@@ -59,6 +59,26 @@ describe("deployment configuration guardrails", () => {
     assert.match(workflow, /NPM_REGISTRY:\s+https:\/\/registry\.npmjs\.org\//);
   });
 
+  it("keeps local dev image publishing separate from production latest", () => {
+    const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+    const publishScript = read("scripts/publish-image.ps1");
+
+    assert.equal(
+      packageJson.scripts?.["publish:dev"],
+      "powershell -ExecutionPolicy Bypass -File scripts/publish-image.ps1 -Dev -Verify -RequireClean",
+    );
+
+    assert.match(publishScript, /\[switch\]\$Dev/);
+    assert.match(publishScript, /\[switch\]\$Verify/);
+    assert.match(publishScript, /\[switch\]\$RequireClean/);
+    assert.match(publishScript, /\$publishedTags = @\("dev-latest", "dev-\$shortSha"\)/);
+    assert.match(publishScript, /\$NoLatest = \$true/);
+    assert.match(publishScript, /-Dev cannot be combined with -Tag/);
+    assert.match(publishScript, /Release publishing requires -Tag vX\.Y\.Z/);
+    assert.match(publishScript, /Working tree is not clean/);
+    assert.match(publishScript, /Invoke-CheckedCommand pnpm\.cmd run verify/);
+  });
+
   it("uses a noninteractive lint command", () => {
     const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
 

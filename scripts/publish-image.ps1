@@ -6,35 +6,96 @@ param(
   [string]$PnpmVersion = "11.1.2",
   [string]$CacheRef = "",
   [switch]$NoCache,
-  [switch]$NoLatest
+  [switch]$NoLatest,
+  [switch]$Dev,
+  [switch]$Verify,
+  [switch]$RequireClean
 )
 
 $ErrorActionPreference = "Stop"
 
-function Get-DefaultTag {
-  try {
-    $shortSha = (git rev-parse --short HEAD 2>$null).Trim()
-    if ($shortSha) {
-      return $shortSha
-    }
-  } catch {
-    # Fall through to a timestamp tag when git is unavailable.
-  }
+function Invoke-CheckedCommand {
+  param(
+    [Parameter(Mandatory = $true)][string]$Command,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
+  )
 
-  return "local-" + (Get-Date -Format "yyyyMMddHHmmss")
+  & $Command @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Command $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+  }
 }
 
-if (-not $Tag) {
-  $Tag = Get-DefaultTag
+function Get-GitOutput {
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+  $output = git @Arguments 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+  }
+
+  return ($output | Select-Object -First 1).Trim()
+}
+
+function Get-GitShortSha {
+  $shortSha = Get-GitOutput @("rev-parse", "--short", "HEAD")
+  if (-not $shortSha) {
+    throw "Could not resolve the current Git commit."
+  }
+
+  return $shortSha
+}
+
+function Assert-CleanWorktree {
+  $status = git status --porcelain
+  if ($LASTEXITCODE -ne 0) {
+    throw "git status --porcelain failed with exit code $LASTEXITCODE."
+  }
+
+  if (($status | Where-Object { $_ }).Count -gt 0) {
+    throw "Working tree is not clean. Commit or stash local changes before publishing."
+  }
+}
+
+if ($Dev -and $Tag) {
+  throw "-Dev cannot be combined with -Tag. Dev publishing uses dev-latest and dev-<short-sha>."
+}
+
+if ((-not $Dev) -and (-not $Tag)) {
+  throw "Release publishing requires -Tag vX.Y.Z. Use -Dev for development publishing."
+}
+
+if ($Dev) {
+  $RequireClean = $true
+}
+
+if ($RequireClean) {
+  Assert-CleanWorktree
+}
+
+if ($Verify) {
+  Invoke-CheckedCommand pnpm.cmd run verify
 }
 
 if (-not $CacheRef) {
   $CacheRef = "${ImageName}:buildcache"
 }
 
-$tags = @("-t", "${ImageName}:${Tag}")
-if (-not $NoLatest) {
-  $tags += @("-t", "${ImageName}:latest")
+$publishedTags = @()
+if ($Dev) {
+  $shortSha = Get-GitShortSha
+  $publishedTags = @("dev-latest", "dev-$shortSha")
+  $NoLatest = $true
+} else {
+  $publishedTags = @($Tag)
+  if (-not $NoLatest) {
+    $publishedTags += "latest"
+  }
+}
+
+$tags = @()
+foreach ($publishedTag in $publishedTags) {
+  $tags += @("-t", "${ImageName}:${publishedTag}")
 }
 
 $cacheArgs = @()
@@ -47,28 +108,31 @@ if (-not $NoCache) {
 
 Write-Host "Publishing Docker image:" -ForegroundColor Cyan
 Write-Host "  image:    $ImageName"
-Write-Host "  tag:      $Tag"
+Write-Host "  tags:     $($publishedTags -join ', ')"
 Write-Host "  platform: $Platform"
 Write-Host "  registry: $NpmRegistry"
 if (-not $NoCache) {
   Write-Host "  cache:    $CacheRef"
 }
-if (-not $NoLatest) {
-  Write-Host "  latest:   ${ImageName}:latest"
+if ($Dev) {
+  Write-Host "  mode:     dev"
 }
 
-docker buildx version | Out-Null
+Invoke-CheckedCommand docker buildx version
 
-docker buildx build `
-  --platform $Platform `
-  --build-arg "NPM_REGISTRY=$NpmRegistry" `
-  --build-arg "PNPM_VERSION=$PnpmVersion" `
-  @tags `
-  @cacheArgs `
-  --push `
-  .
+$dockerArgs = @(
+  "buildx",
+  "build",
+  "--platform", $Platform,
+  "--build-arg", "NPM_REGISTRY=$NpmRegistry",
+  "--build-arg", "PNPM_VERSION=$PnpmVersion"
+)
+$dockerArgs += $tags
+$dockerArgs += $cacheArgs
+$dockerArgs += @("--push", ".")
 
-Write-Host "Published ${ImageName}:${Tag}" -ForegroundColor Green
-if (-not $NoLatest) {
-  Write-Host "Published ${ImageName}:latest" -ForegroundColor Green
+Invoke-CheckedCommand docker @dockerArgs
+
+foreach ($publishedTag in $publishedTags) {
+  Write-Host "Published ${ImageName}:${publishedTag}" -ForegroundColor Green
 }
