@@ -1,0 +1,36 @@
+{
+  "name": "image-2-studio",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "db:sqlite": "powershell -ExecutionPolicy Bypass -File scripts/use-sqlite-prisma.ps1",
+    "db:postgres": "powershell -ExecutionPolicy Bypass -File scripts/use-postgres-prisma.ps1",
+    "db:generate": "prisma generate --schema prisma/schema.active.prisma",
+    "db:migrate": "prisma migrate deploy --schema prisma/schema.active.prisma",
+    "db:push": "powershell -ExecutionPolicy Bypass -File scripts/db-push-sqlite.ps1",
+    "db:validate": "powershell -ExecutionPolicy Bypass -File scripts/db-validate-sqlite.ps1",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.6.2",
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "lucide-react": "^0.468.0",
+    "next": "^15.1.3",
+    "openai": "^4.77.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.3",
+    "prisma": "^6.19.0",
+    "typescript": "^5.7.2"
+  }
+}

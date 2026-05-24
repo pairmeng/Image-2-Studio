@@ -1,0 +1,16 @@
+.next/
+node_modules/
+.pnpm-store/
+.codex/
+dist/
+.env
+.env*.local
+storage/
+prisma/*.db
+prisma/*.db-*
+public/generated/*
+public/uploads/*
+!public/generated/.gitkeep
+!public/uploads/.gitkeep
+data/images.json
+data/provider-config.json
