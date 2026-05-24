@@ -67,11 +67,17 @@ $env:NEXT_STANDALONE="true"; pnpm.cmd run build
 
 生产部署只使用 GHCR 上已经构建好的镜像。服务器只负责拉取和启动镜像；依赖安装和镜像构建都在镜像到达服务器之前完成。
 
-只有推送 `v*` 版本 tag 时，GitHub Actions 才会构建并推送镜像，例如 `v1.0.6`：
+镜像发布按用途拆开：
+
+- 日常开发使用 `pnpm.cmd run publish:dev`，只推送 `dev-latest` 和 `dev-<short-sha>`。
+- 生产环境继续拉取 `latest`。
+- `latest` 只允许由正式发布的手动 workflow 更新，且发布 ref 必须是 `v*`。
 
 ```text
-ghcr.io/pairmeng/image-2-studio:latest
+ghcr.io/pairmeng/image-2-studio:dev-latest
+ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
 ghcr.io/pairmeng/image-2-studio:<version-tag>
+ghcr.io/pairmeng/image-2-studio:latest
 ```
 
 ### 1. 获取部署文件
@@ -201,14 +207,43 @@ DOCKER_DATABASE_URL=postgresql://db_user:db_password@db_host:5432/db_name?schema
 
 ### 5. 更新
 
-发布新镜像时，先确保发布提交已经在 `main`，然后创建并推送版本 tag：
+日常测试镜像从干净的本地工作区发布：
 
-```bash
-git tag -a v1.0.6 -m "v1.0.6"
-git push origin v1.0.6
+```powershell
+pnpm.cmd run publish:dev
 ```
 
-GitHub Actions 构建完成后，再到服务器更新。
+这个命令会先执行验证，然后推送：
+
+```text
+ghcr.io/pairmeng/image-2-studio:dev-latest
+ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
+```
+
+它不会更新生产 `latest`。
+
+正式发布时，先确保发布提交已经在 `main`，然后创建并推送版本 tag：
+
+```bash
+git tag -a v1.2.23 -m "v1.2.23"
+git push origin v1.2.23
+```
+
+推送 tag 只会运行 Docker build 校验，不会自动发布生产镜像。要发布生产镜像，需要在 GitHub Actions 手动运行 `Build and Publish Docker Image` workflow，选择 branch `main`，并填写：
+
+```text
+ref: v1.2.23
+publish: true
+```
+
+手动发布会推送：
+
+```text
+ghcr.io/pairmeng/image-2-studio:v1.2.23
+ghcr.io/pairmeng/image-2-studio:latest
+```
+
+手动 workflow 成功后，再到服务器更新。
 
 一行更新命令：
 
@@ -233,6 +268,30 @@ docker compose logs -f image-2-worker
 ```
 
 容器启动时会先执行 Prisma migration，然后启动 Next.js。
+
+### 发布检查清单
+
+打正式版本 tag 前，请在干净工作区运行：
+
+```powershell
+pnpm.cmd run verify
+$env:PLAYWRIGHT_CHANNEL='msedge'
+pnpm.cmd run test:e2e
+```
+
+E2E smoke test 会 mock 生图接口，不会调用真实供应商。
+
+手动发布 workflow 成功后，在 Docker 主机上验证默认运行时：
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs --tail=120 image-2-worker
+curl http://127.0.0.1:3000/api/health
+```
+
+健康检查应显示 `backend=redis`、`queue.ok=true`，并且提交新的后台生图任务后 BullMQ 的 `waiting` 或 `active` 有变化。
 
 ### 6. 回滚
 
@@ -385,14 +444,20 @@ docker compose up -d
 
 ```text
 src/app/                  Next.js 页面和 API 路由
+src/components/studio/    Studio UI 组件和 UI 状态 hooks
 src/lib/server/           服务端数据库、认证、文件、供应商配置
 src/lib/server/providers/ OpenAI provider adapter
+src/worker/               图片 worker 的 TypeScript 入口
+dist-worker/              Docker 运行时使用的已跟踪 worker 构建产物
 prisma/                   Prisma schema 和迁移
-scripts/                  Prisma schema 切换和 Docker entrypoint
-storage/                  受保护的上传图和生成图
-public/                   静态资源
+scripts/                  Prisma 切换、Docker entrypoint 和镜像发布脚本
+tests/                    Node 测试
+e2e/                      Playwright smoke tests
+storage/                  运行时上传图和生成图；生产环境不要删除
+public/                   静态资源以及 generated/upload 占位目录
+.next/, .test-dist/       被忽略的本地构建和测试输出
 ```
 
 ## License
 
-当前项目未声明开源许可证。发布前请根据实际计划补充 License。
+Image-2 Studio 使用 MIT License。详见 [LICENSE](./LICENSE)。

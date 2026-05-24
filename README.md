@@ -69,11 +69,17 @@ With pnpm on Windows, standalone builds may require Developer Mode or an elevate
 
 Production deployment should use the prebuilt GHCR image. The server only pulls and starts the image; all package installation and image building happen before the image reaches the server.
 
-GitHub Actions builds and pushes this image only when a `v*` version tag is pushed, for example `v1.2.18`:
+Image publishing is split by intent:
+
+- Daily development uses `pnpm.cmd run publish:dev` and pushes only `dev-latest` plus `dev-<short-sha>`.
+- Production continues to pull `latest`.
+- `latest` is updated only by the formal manual release workflow for a `v*` ref.
 
 ```text
-ghcr.io/pairmeng/image-2-studio:latest
+ghcr.io/pairmeng/image-2-studio:dev-latest
+ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
 ghcr.io/pairmeng/image-2-studio:<version-tag>
+ghcr.io/pairmeng/image-2-studio:latest
 ```
 
 ### 1. Get Deployment Files
@@ -203,14 +209,43 @@ The external PostgreSQL account must be allowed to run Prisma migrations. If you
 
 ### 5. Update
 
-Publish a new image by creating and pushing a version tag after the release commit is on `main`:
+For daily test builds, publish from a clean local working tree:
 
-```bash
-git tag -a v1.2.18 -m "v1.2.18"
-git push origin v1.2.18
+```powershell
+pnpm.cmd run publish:dev
 ```
 
-After GitHub Actions finishes, update the server.
+This runs verification first and pushes:
+
+```text
+ghcr.io/pairmeng/image-2-studio:dev-latest
+ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
+```
+
+It does not update production `latest`.
+
+For production releases, create and push a version tag after the release commit is on `main`:
+
+```bash
+git tag -a v1.2.23 -m "v1.2.23"
+git push origin v1.2.23
+```
+
+Pushing the tag only runs the Docker build check. To publish the production image, manually run the `Build and Publish Docker Image` GitHub Actions workflow from branch `main` with:
+
+```text
+ref: v1.2.23
+publish: true
+```
+
+The manual release publishes:
+
+```text
+ghcr.io/pairmeng/image-2-studio:v1.2.23
+ghcr.io/pairmeng/image-2-studio:latest
+```
+
+After the manual workflow succeeds, update the server.
 
 One-line update command:
 
@@ -241,11 +276,8 @@ The container entrypoint runs Prisma migrations before starting Next.js.
 Before tagging a release, run the local gates from a clean working tree:
 
 ```powershell
-pnpm.cmd run db:validate
-pnpm.cmd run lint
-pnpm.cmd run test:jobs
-pnpm.cmd exec tsc -p tsconfig.worker.json --noEmit
-pnpm.cmd run build
+pnpm.cmd run verify
+$env:PLAYWRIGHT_CHANNEL='msedge'
 pnpm.cmd run test:e2e
 ```
 
@@ -414,14 +446,20 @@ docker compose up -d
 
 ```text
 src/app/                  Next.js pages and API routes
+src/components/studio/    Studio UI components and UI state hooks
 src/lib/server/           Server database, auth, files, and provider config
 src/lib/server/providers/ OpenAI provider adapter
+src/worker/               Image worker TypeScript entrypoint
+dist-worker/              Tracked worker build output used by Docker runtime
 prisma/                   Prisma schema and migrations
-scripts/                  Prisma schema switching and Docker entrypoint
-storage/                  Protected uploaded and generated images
-public/                   Static assets
+scripts/                  Prisma switching, Docker entrypoint, and image publishing helpers
+tests/                    Node test suite
+e2e/                      Playwright smoke tests
+storage/                  Runtime uploaded and generated images; do not delete in production
+public/                   Static assets plus generated/upload placeholders
+.next/, .test-dist/       Ignored local build and test output
 ```
 
 ## License
 
-No license has been declared yet.
+Image-2 Studio is licensed under the MIT License. See [LICENSE](./LICENSE).
