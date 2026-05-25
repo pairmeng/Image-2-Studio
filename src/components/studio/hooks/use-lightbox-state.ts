@@ -186,7 +186,7 @@ export function useLightboxState(records: ImageRecord[]) {
     let cancelled = false;
     setFileBytes(null);
 
-    void fetch(record.imageUrl, { method: "HEAD", cache: "no-store" })
+    void fetch(record.imageUrl, { method: "HEAD" })
       .then((response) => {
         if (cancelled || !response.ok) return;
 

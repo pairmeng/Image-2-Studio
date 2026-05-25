@@ -360,6 +360,8 @@ export async function runImageJobWithDeps(
       prompt: input.prompt,
       filePath: generated.filePath,
       mimeType: generated.mimeType,
+      thumbnailPath: generated.thumbnailPath,
+      thumbnailMimeType: generated.thumbnailMimeType,
       size: input.size,
       aspectRatio: input.aspectRatio,
       quality: input.quality,

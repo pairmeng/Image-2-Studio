@@ -19,6 +19,7 @@ export type BatchGenerationItem = {
   jobId?: string;
   resultId?: string;
   imageUrl?: string;
+  thumbnailUrl?: string;
   error?: string;
   retryCount?: number;
 };
@@ -56,6 +57,7 @@ export function batchItemToGenerationItem(item: ImageBatchItemResponse): BatchGe
     jobId: item.jobId,
     resultId: item.resultId,
     imageUrl: item.imageUrl,
+    thumbnailUrl: item.thumbnailUrl,
     error: item.error,
     retryCount: item.retryCount
   };
@@ -129,7 +131,8 @@ export function useImageJobs({
         status: job.status as BatchGenerationStatus,
         error: job.error,
         resultId: job.resultId,
-        imageUrl: job.imageUrl
+        imageUrl: job.imageUrl,
+        thumbnailUrl: job.thumbnailUrl
       });
     }
   }
@@ -149,6 +152,7 @@ export function useImageJobs({
         batchItemId: item.id,
         resultId: item.resultId,
         imageUrl: item.imageUrl,
+        thumbnailUrl: item.thumbnailUrl,
         error: item.error,
         createdAt: item.createdAt,
         startedAt: item.startedAt,

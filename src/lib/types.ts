@@ -19,6 +19,7 @@ export type ImageRecord = {
   mode: ImageMode;
   prompt: string;
   imageUrl: string;
+  thumbnailUrl?: string;
   imagePath: string;
   size?: string;
   aspectRatio?: string;
@@ -82,6 +83,7 @@ export type ImageJobResponse = {
   batchItemId?: string;
   resultId?: string;
   imageUrl?: string;
+  thumbnailUrl?: string;
   error?: string;
   queueWaitMs?: number;
   executionMs?: number;
@@ -112,6 +114,7 @@ export type ImageBatchItemResponse = {
   jobId?: string;
   resultId?: string;
   imageUrl?: string;
+  thumbnailUrl?: string;
   error?: string;
   retryCount: number;
   createdAt: string;

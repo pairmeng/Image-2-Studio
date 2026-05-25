@@ -138,6 +138,7 @@ export function StudioLightbox({
               data-testid="lightbox-inspector-image"
               src={record.imageUrl}
               alt={labels.imagePreview}
+              fetchPriority="high"
               draggable={false}
               onLoad={(event) => onImageLoad(event.currentTarget)}
               style={{
@@ -162,7 +163,7 @@ export function StudioLightbox({
             </button>
           </div>
           <button className="lightbox-image-wrap lightbox-image-button" data-testid="lightbox-detail-image" type="button" onClick={onEnterInspector} title={labels.preview}>
-            <RawImage src={record.imageUrl} alt={labels.imagePreview} onLoad={(event) => onImageLoad(event.currentTarget)} />
+            <RawImage src={record.imageUrl} alt={labels.imagePreview} fetchPriority="high" onLoad={(event) => onImageLoad(event.currentTarget)} />
           </button>
           <details className="lightbox-prompt" open>
             <summary>

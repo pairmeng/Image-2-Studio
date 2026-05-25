@@ -532,7 +532,7 @@ export function ComposerPanel({
         <div className="reference-strip" aria-label={locale === "zh" ? "参考图" : "Reference images"}>
           {activeSourceRecords.map((record) => (
             <div className="reference-chip" key={record.id}>
-              <RawImage src={record.imageUrl} alt={t("imagePreview")} />
+              <RawImage src={record.thumbnailUrl ?? record.imageUrl} alt={t("imagePreview")} loading="lazy" />
               <span>{getModelLabel(catalog, record.provider, record.model)}</span>
               <button className="icon-button" type="button" title={locale === "zh" ? "移除来源" : "Remove source"} onClick={() => onClearSource(record.id)}>
                 <X size={14} />

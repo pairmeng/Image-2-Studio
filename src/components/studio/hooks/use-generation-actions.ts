@@ -513,6 +513,7 @@ export function useGenerationActions({
       status: "creating",
       error: undefined,
       imageUrl: undefined,
+      thumbnailUrl: undefined,
       resultId: undefined
     });
 
@@ -532,6 +533,7 @@ export function useGenerationActions({
       status: "succeeded",
       resultId: job.resultId,
       imageUrl: job.imageUrl,
+      thumbnailUrl: job.thumbnailUrl,
       error: undefined
     });
 

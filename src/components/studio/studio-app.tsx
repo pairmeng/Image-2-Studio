@@ -994,35 +994,37 @@ function StudioAppContent() {
             onSendActiveRunToBackground={() => sendActiveRunToBackground()}
           />
 
-          <ResultPanel
-            catalog={catalog}
-            selectedModel={selectedModel}
-            selectedRecord={selectedRecord}
-            selectedRecordCanContinue={selectedRecordCanContinue}
-            isConfigured={isConfigured}
-            batchItems={batchItems}
-            batchRunning={batchRunning}
-            batchFinishedCount={batchFinishedCount}
-            batchSucceededCount={batchSucceededCount}
-            batchFailedCount={batchFailedCount}
-            batchPausedOnly={batchPausedOnly}
-            batchElapsedLabel={batchElapsedLabel}
-            batchProgressPercent={batchProgressPercent}
-            activeBatchId={activeBatchId}
-            pendingGeneration={pendingGeneration}
-            elapsedSeconds={elapsedSeconds}
-            jobActionId={jobActionId}
-            trackingJobId={trackingJobId}
-            t={t}
-            onLoadBatchDetail={(batchId) => void loadBatchDetailAndPoll(batchId, { showInStudio: true, pollActive: true })}
-            onRetryFailedBatchItems={() => void retryFailedBatchItems()}
-            onChangeImageJobState={(jobId, action) => void changeImageJobState(jobId, action)}
-            onRetryBatchItem={(item) => void retryBatchItem(item)}
-            onOpenLightbox={openLightbox}
-            onStartContinueEdit={startContinueEdit}
-            onCopyImage={(record) => void copyImage(record)}
-            onCopyPromptText={(record) => void copyPromptText(record)}
-          />
+          {activeView === "studio" && (
+            <ResultPanel
+              catalog={catalog}
+              selectedModel={selectedModel}
+              selectedRecord={selectedRecord}
+              selectedRecordCanContinue={selectedRecordCanContinue}
+              isConfigured={isConfigured}
+              batchItems={batchItems}
+              batchRunning={batchRunning}
+              batchFinishedCount={batchFinishedCount}
+              batchSucceededCount={batchSucceededCount}
+              batchFailedCount={batchFailedCount}
+              batchPausedOnly={batchPausedOnly}
+              batchElapsedLabel={batchElapsedLabel}
+              batchProgressPercent={batchProgressPercent}
+              activeBatchId={activeBatchId}
+              pendingGeneration={pendingGeneration}
+              elapsedSeconds={elapsedSeconds}
+              jobActionId={jobActionId}
+              trackingJobId={trackingJobId}
+              t={t}
+              onLoadBatchDetail={(batchId) => void loadBatchDetailAndPoll(batchId, { showInStudio: true, pollActive: true })}
+              onRetryFailedBatchItems={() => void retryFailedBatchItems()}
+              onChangeImageJobState={(jobId, action) => void changeImageJobState(jobId, action)}
+              onRetryBatchItem={(item) => void retryBatchItem(item)}
+              onOpenLightbox={openLightbox}
+              onStartContinueEdit={startContinueEdit}
+              onCopyImage={(record) => void copyImage(record)}
+              onCopyPromptText={(record) => void copyPromptText(record)}
+            />
+          )}
 
           <GalleryPanel
             catalog={catalog}

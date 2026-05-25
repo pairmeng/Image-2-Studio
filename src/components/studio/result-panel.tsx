@@ -185,7 +185,7 @@ export function ResultPanel({
                 <div className={`batch-result-item is-${item.status}`} key={item.id}>
                   <div className="batch-result-thumb">
                     {item.imageUrl ? (
-                      <RawImage src={item.imageUrl} alt={t("imagePreview")} />
+                      <RawImage src={item.thumbnailUrl ?? item.imageUrl} alt={t("imagePreview")} loading="lazy" />
                     ) : item.status === "failed" ? (
                       <X size={18} />
                     ) : item.status === "succeeded" ? (
@@ -282,7 +282,7 @@ export function ResultPanel({
             <span className="tag">{formatDate(selectedRecord.createdAt)}</span>
           </div>
           <button className="hero-image-button" type="button" onClick={() => onOpenLightbox(selectedRecord.id)} title={t("preview")}>
-            <RawImage className="hero-result-image" src={selectedRecord.imageUrl} alt={t("imagePreview")} />
+            <RawImage className="hero-result-image" src={selectedRecord.imageUrl} alt={t("imagePreview")} fetchPriority="high" />
             <span>
               <ExternalLink size={15} />
               {t("preview")}

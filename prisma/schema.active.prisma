@@ -85,6 +85,8 @@ model ImageRecord {
   prompt         String
   filePath       String
   mimeType       String
+  thumbnailPath  String?
+  thumbnailMimeType String?
   size           String?
   aspectRatio    String?
   quality        String?

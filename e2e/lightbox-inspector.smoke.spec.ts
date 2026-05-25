@@ -12,6 +12,7 @@ const user = {
 const imageId = "image-lightbox-1";
 const imageSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1672" height="941" viewBox="0 0 1672 941"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#f78dbb"/><stop offset="1" stop-color="#0d4ea6"/></linearGradient></defs><rect width="1672" height="941" fill="url(#g)"/><circle cx="526" cy="310" r="170" fill="#fff4" /><path d="M0 670 C300 590 520 735 820 660 C1130 582 1348 610 1672 520 L1672 941 L0 941 Z" fill="#001b46aa"/></svg>`;
 const imageBytes = Buffer.byteLength(imageSvg);
+const thumbSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#0d4ea6"/><circle cx="210" cy="120" r="72" fill="#f78dbb"/></svg>`;
 
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({
@@ -23,6 +24,11 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
 
 async function mockLightboxApi(page: Page) {
   let loggedIn = false;
+  const requestCounts = {
+    originalGet: 0,
+    originalHead: 0,
+    thumbGet: 0
+  };
 
   await page.route((url) => url.pathname === "/api/app/branding", (route) => fulfillJson(route, {
     siteTitle: "Image-2 Studio",
@@ -74,6 +80,7 @@ async function mockLightboxApi(page: Page) {
       mode: "text-to-image",
       prompt: "Lightbox zoom smoke test image",
       imageUrl: `/api/images/file/${imageId}`,
+      thumbnailUrl: `/api/images/thumb/${imageId}`,
       imagePath: "storage/images/lightbox.svg",
       size: "1536x1024",
       aspectRatio: "16:9",
@@ -90,8 +97,18 @@ async function mockLightboxApi(page: Page) {
   await page.route((url) => url.pathname === "/api/images/templates", (route) => fulfillJson(route, { templates: [] }));
   await page.route((url) => url.pathname === "/api/images/jobs", (route) => fulfillJson(route, { jobs: [] }));
 
+  await page.route((url) => url.pathname === `/api/images/thumb/${imageId}`, (route) => {
+    requestCounts.thumbGet += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: thumbSvg
+    });
+  });
+
   await page.route((url) => url.pathname === `/api/images/file/${imageId}`, (route) => {
     if (route.request().method() === "HEAD") {
+      requestCounts.originalHead += 1;
       return route.fulfill({
         status: 200,
         headers: {
@@ -101,12 +118,15 @@ async function mockLightboxApi(page: Page) {
       });
     }
 
+    requestCounts.originalGet += 1;
     return route.fulfill({
       status: 200,
       contentType: "image/svg+xml",
       body: imageSvg
     });
   });
+
+  return requestCounts;
 }
 
 test("gallery image opens a second-level zoomable inspector", async ({ page }) => {
@@ -117,7 +137,7 @@ test("gallery image opens a second-level zoomable inspector", async ({ page }) =
     }
   });
 
-  await mockLightboxApi(page);
+  const requestCounts = await mockLightboxApi(page);
   await page.goto("/");
 
   await page.getByTestId("auth-email").fill(user.email);
@@ -125,9 +145,13 @@ test("gallery image opens a second-level zoomable inspector", async ({ page }) =
   await page.getByTestId("auth-submit").click();
 
   await expect(page.getByTestId("history-card-preview")).toBeVisible();
+  await expect.poll(() => requestCounts.thumbGet).toBeGreaterThan(0);
+  expect(requestCounts.originalGet).toBe(0);
+
   await page.getByTestId("history-card-preview").click();
 
   await expect(page.getByTestId("lightbox-detail")).toBeVisible();
+  await expect.poll(() => requestCounts.originalGet).toBeGreaterThan(0);
   await page.getByTestId("lightbox-detail-image").click();
 
   await expect(page.getByTestId("lightbox-inspector")).toBeVisible();

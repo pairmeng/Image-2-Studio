@@ -482,7 +482,7 @@ export function GalleryPanel({
                       aria-label={labels.viewCurrentImage}
                     >
                       <div className="history-card-image">
-                        <RawImage src={record.imageUrl} alt={labels.imagePreview} loading="lazy" />
+                        <RawImage src={record.thumbnailUrl ?? record.imageUrl} alt={labels.imagePreview} loading="lazy" />
                         <div className="history-image-badges">
                           <span>{record.aspectRatio ? getAspectRatioLabel(record.aspectRatio) : "-"}</span>
                           <span>{record.size || "-"}</span>

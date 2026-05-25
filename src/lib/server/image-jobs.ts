@@ -186,6 +186,7 @@ function toJobResponse(job: StoredImageJob): ImageJobResponse {
     batchItemId: job.batchItemId ?? undefined,
     resultId: job.resultId ?? undefined,
     imageUrl: status === "succeeded" && job.resultId ? `/api/images/file/${job.resultId}` : undefined,
+    thumbnailUrl: status === "succeeded" && job.resultId ? `/api/images/thumb/${job.resultId}` : undefined,
     error: job.error ?? undefined,
     queueWaitMs: job.queueWaitMs ?? undefined,
     executionMs: job.executionMs ?? undefined,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/server/auth";
-import { readStoredImageMetaForUser } from "@/lib/server/files";
+import { readThumbnailMetaForUser } from "@/lib/server/files";
 import {
   createImageResponseContext,
   createNotModifiedImageResponse,
@@ -11,16 +11,16 @@ import { handleRouteError } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
-async function getImageFileResponseContext(context: { params: Promise<{ id: string }> }) {
+async function getThumbnailResponseContext(context: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await context.params;
-  const image = await readStoredImageMetaForUser(user.id, id);
+  const image = await readThumbnailMetaForUser(user.id, id);
   return createImageResponseContext(image);
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const responseContext = await getImageFileResponseContext(context);
+    const responseContext = await getThumbnailResponseContext(context);
     if (isFreshImageRequest(request, responseContext)) {
       return createNotModifiedImageResponse(responseContext.headers);
     }
@@ -33,7 +33,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
 export async function HEAD(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const responseContext = await getImageFileResponseContext(context);
+    const responseContext = await getThumbnailResponseContext(context);
     if (isFreshImageRequest(request, responseContext)) {
       return createNotModifiedImageResponse(responseContext.headers);
     }

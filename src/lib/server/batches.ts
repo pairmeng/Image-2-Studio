@@ -75,6 +75,7 @@ function toBatchItemResponse(item: StoredBatchItem): ImageBatchItemResponse {
     jobId: item.jobId ?? undefined,
     resultId: item.resultId ?? undefined,
     imageUrl: item.resultId ? `/api/images/file/${item.resultId}` : undefined,
+    thumbnailUrl: item.resultId ? `/api/images/thumb/${item.resultId}` : undefined,
     error: item.error ?? undefined,
     retryCount: item.retryCount,
     createdAt: item.createdAt.toISOString(),

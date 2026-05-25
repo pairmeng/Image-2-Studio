@@ -89,6 +89,7 @@ export function toImageRecord(record: DbImageRecord): ImageRecord {
     mode: toUiMode(record.mode),
     prompt: record.prompt,
     imageUrl: `/api/images/file/${record.id}`,
+    thumbnailUrl: `/api/images/thumb/${record.id}`,
     imagePath: record.filePath,
     size: record.size ?? undefined,
     aspectRatio: record.aspectRatio ?? undefined,
@@ -172,6 +173,8 @@ export async function appendHistory(input: {
   prompt: string;
   filePath: string;
   mimeType: string;
+  thumbnailPath?: string;
+  thumbnailMimeType?: string;
   size?: string;
   aspectRatio?: string;
   quality?: string;
@@ -195,6 +198,8 @@ export async function appendHistory(input: {
       prompt: input.prompt,
       filePath: input.filePath,
       mimeType: input.mimeType,
+      thumbnailPath: input.thumbnailPath,
+      thumbnailMimeType: input.thumbnailMimeType,
       size: input.size,
       aspectRatio: input.aspectRatio,
       quality: input.quality,
@@ -255,9 +260,11 @@ function isInsideDirectory(baseDir: string, filePath: string) {
   return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
-async function cleanupGeneratedHistoryFiles(userId: string, records: Array<Pick<DbImageRecord, "filePath">>) {
+async function cleanupGeneratedHistoryFiles(userId: string, records: Array<Pick<DbImageRecord, "filePath" | "thumbnailPath">>) {
   const userGeneratedDir = path.resolve(STORAGE_GENERATED_DIR, userId);
-  const filePaths = Array.from(new Set(records.map((record) => record.filePath).filter(Boolean)));
+  const filePaths = Array.from(new Set(records
+    .flatMap((record) => [record.filePath, record.thumbnailPath])
+    .filter((filePath): filePath is string => Boolean(filePath))));
   if (filePaths.length === 0) return;
 
   await prisma.storedImage.deleteMany({
