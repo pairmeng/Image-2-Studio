@@ -1061,8 +1061,12 @@
   }
 
   .topbar-activity-popover {
-    right: 0;
-    width: calc(100vw - 18px);
+    position: fixed;
+    top: 60px;
+    right: 9px;
+    left: 9px;
+    width: auto;
+    max-height: calc(100vh - 72px);
   }
 }
 

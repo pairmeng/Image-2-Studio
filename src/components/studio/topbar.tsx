@@ -285,24 +285,22 @@ export function Topbar({
             </button>
             <div className="topbar-action-group topbar-tool-actions">
               {activeView === "gallery" && (
-                <>
-                  <button
-                    className="icon-button"
-                    data-testid="refresh-gallery"
-                    type="button"
-                    title={locale === "zh" ? "\u5237\u65b0\u56fe\u5e93" : "Refresh gallery"}
-                    aria-label={locale === "zh" ? "\u5237\u65b0\u56fe\u5e93" : "Refresh gallery"}
-                    disabled={historyLoading}
-                    onClick={() => {
-                      onTopbarMenuOpenChange(false);
-                      onRefreshGallery();
-                    }}
-                  >
-                    {historyLoading ? <Loader2 className="spin" size={17} /> : <RefreshCw size={17} />}
-                  </button>
-                  {jobMonitor}
-                </>
+                <button
+                  className="icon-button"
+                  data-testid="refresh-gallery"
+                  type="button"
+                  title={locale === "zh" ? "\u5237\u65b0\u56fe\u5e93" : "Refresh gallery"}
+                  aria-label={locale === "zh" ? "\u5237\u65b0\u56fe\u5e93" : "Refresh gallery"}
+                  disabled={historyLoading}
+                  onClick={() => {
+                    onTopbarMenuOpenChange(false);
+                    onRefreshGallery();
+                  }}
+                >
+                  {historyLoading ? <Loader2 className="spin" size={17} /> : <RefreshCw size={17} />}
+                </button>
               )}
+              {jobMonitor}
               <button
                 className="icon-button"
                 type="button"

@@ -120,7 +120,12 @@ export function ResultPanel({
           <p>{t("batchEmpty")}</p>
         </div>
       ) : batchItems.length > 0 && (generationInputMode === "batch" || batchRunning) ? (
-        <div className={`result-stage batch-result-stage ${batchRunning ? "is-pending" : ""}`} aria-live="polite" aria-busy={batchRunning}>
+        <div
+          className={`result-stage batch-result-stage ${batchRunning ? "is-pending" : ""}`}
+          data-testid="batch-result-stage"
+          aria-live="polite"
+          aria-busy={batchRunning}
+        >
           <div className="batch-result-summary">
             <div>
               <p className="section-label">{t("batchProgress")}</p>
@@ -182,7 +187,7 @@ export function ResultPanel({
                           : t("batchFailed");
 
               return (
-                <div className={`batch-result-item is-${item.status}`} key={item.id}>
+                <div className={`batch-result-item is-${item.status}`} data-testid="batch-result-item" key={item.id}>
                   <div className="batch-result-thumb">
                     {item.imageUrl ? (
                       <RawImage src={item.thumbnailUrl ?? item.imageUrl} alt={t("imagePreview")} loading="lazy" />
@@ -205,7 +210,7 @@ export function ResultPanel({
                     <p>{item.prompt}</p>
                     {item.error && <small>{item.error}</small>}
                   </div>
-                  <div className="batch-item-actions">
+                  <div className="batch-item-actions" data-testid="batch-item-actions">
                     {isPausableImageJobStatus(item.status) && item.jobId && (
                       <button className="text-button tiny" type="button" disabled={Boolean(jobActionId || trackingJobId)} onClick={() => onChangeImageJobState(item.jobId!, "pause")}>
                         {jobActionId === item.jobId ? <Loader2 className="spin" size={14} /> : <Pause size={14} />}
