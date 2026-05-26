@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/server/auth";
 import { deleteHistoryRecords, normalizeHistoryLimit, readHistoryPage } from "@/lib/server/history";
-import { handleRouteError } from "@/lib/server/responses";
+import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const user = await requireUser();
-    const body = (await request.json().catch(() => ({}))) as { ids?: unknown };
+    const body = await readJsonBody<{ ids?: unknown }>(request);
     const deletedIds = await deleteHistoryRecords(user.id, body.ids);
 
     return NextResponse.json({ ok: true, deletedIds });

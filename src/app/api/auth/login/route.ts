@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSession, normalizeEmail, toPublicUser, verifyPassword } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
-import { jsonError } from "@/lib/server/responses";
+import { jsonError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { email?: string; password?: string };
+  const body = await readJsonBody<{ email?: string; password?: string }>(request);
   const email = normalizeEmail(body.email ?? "");
   const password = body.password ?? "";
 

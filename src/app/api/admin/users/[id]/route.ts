@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hashPassword, requireAdmin, toPublicUser } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
-import { handleRouteError, jsonError } from "@/lib/server/responses";
+import { handleRouteError, jsonError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
@@ -9,11 +9,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const admin = await requireAdmin();
     const { id } = await context.params;
-    const body = (await request.json()) as {
+    const body = await readJsonBody<{
       disabled?: boolean;
       password?: string;
       role?: "ADMIN" | "USER";
-    };
+    }>(request);
 
     const data: {
       disabled?: boolean;

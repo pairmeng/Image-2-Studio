@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { AppError } from "../src/lib/server/errors";
-import { handleRouteError } from "../src/lib/server/responses";
+import { handleRouteError, readJsonBody } from "../src/lib/server/responses";
 
 describe("route error responses", () => {
   it("preserves AppError status codes and messages", async () => {
@@ -45,5 +45,33 @@ describe("route error responses", () => {
     } finally {
       console.error = originalConsoleError;
     }
+  });
+
+  it("reads JSON object request bodies", async () => {
+    const request = new Request("http://localhost/api/example", {
+      method: "POST",
+      body: JSON.stringify({ name: "Project", enabled: true })
+    });
+
+    assert.deepEqual(await readJsonBody(request), {
+      name: "Project",
+      enabled: true
+    });
+  });
+
+  it("uses an empty body for blank, invalid, or non-object JSON", async () => {
+    const blank = new Request("http://localhost/api/example", { method: "POST" });
+    const invalid = new Request("http://localhost/api/example", {
+      method: "POST",
+      body: "{"
+    });
+    const array = new Request("http://localhost/api/example", {
+      method: "POST",
+      body: JSON.stringify(["not", "an", "object"])
+    });
+
+    assert.deepEqual(await readJsonBody(blank), {});
+    assert.deepEqual(await readJsonBody(invalid), {});
+    assert.deepEqual(await readJsonBody(array), {});
   });
 });

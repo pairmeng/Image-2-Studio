@@ -3,7 +3,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
-import { handleRouteError } from "@/lib/server/responses";
+import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
@@ -138,7 +138,7 @@ function createZip(files: Array<{ name: string; data: Buffer; date: Date }>) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = (await request.json().catch(() => ({}))) as { ids?: unknown; naming?: unknown };
+    const body = await readJsonBody<{ ids?: unknown; naming?: unknown }>(request);
     const ids = normalizeIds(body.ids);
 
     if (ids.length === 0) {

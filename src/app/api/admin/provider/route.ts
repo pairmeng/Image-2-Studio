@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server/auth";
 import { savePlatformProviderConfig } from "@/lib/server/provider-config";
-import { handleRouteError } from "@/lib/server/responses";
+import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
     await requireAdmin();
-    const body = (await request.json()) as {
+    const body = await readJsonBody<{
       keys?: Partial<Record<string, string>>;
       baseUrls?: Partial<Record<string, string>>;
       models?: Partial<Record<string, string>>;
-    };
+    }>(request);
 
     await savePlatformProviderConfig({
       keys: {

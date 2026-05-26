@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/server/auth";
 import { deletePromptTemplateForUser, updatePromptTemplateForUser } from "@/lib/server/templates";
-import { handleRouteError } from "@/lib/server/responses";
+import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
@@ -9,12 +9,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const user = await requireUser();
     const { id } = await context.params;
-    const body = (await request.json().catch(() => ({}))) as {
+    const body = await readJsonBody<{
       title?: unknown;
       category?: unknown;
       mode?: unknown;
       content?: unknown;
-    };
+    }>(request);
     const template = await updatePromptTemplateForUser(user.id, id, body);
 
     return NextResponse.json(template);

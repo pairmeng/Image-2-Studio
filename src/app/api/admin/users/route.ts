@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { hashPassword, normalizeEmail, requireAdmin, toPublicUser } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
-import { jsonError, handleRouteError } from "@/lib/server/responses";
+import { jsonError, handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
     await requireAdmin();
-    const body = (await request.json()) as {
+    const body = await readJsonBody<{
       email?: string;
       password?: string;
       role?: "ADMIN" | "USER";
-    };
+    }>(request);
     const email = normalizeEmail(body.email ?? "");
     const password = body.password ?? "";
 

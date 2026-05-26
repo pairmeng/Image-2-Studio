@@ -2,20 +2,20 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
 import { getAppSettings, sanitizeFaviconUrl, sanitizeLogoUrl, sanitizeSiteTitle } from "@/lib/server/provider-config";
-import { handleRouteError } from "@/lib/server/responses";
+import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
     await requireAdmin();
-    const body = (await request.json()) as {
+    const body = await readJsonBody<{
       registrationOpen?: boolean;
       dailyPlatformQuota?: number;
       siteTitle?: string;
       faviconUrl?: string;
       logoUrl?: string;
-    };
+    }>(request);
     const current = await getAppSettings();
     const siteTitle = sanitizeSiteTitle(body.siteTitle);
     const faviconUrl = sanitizeFaviconUrl(body.faviconUrl);

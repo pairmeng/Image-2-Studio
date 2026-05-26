@@ -55,7 +55,10 @@ export function useAuthSession({ onAuthenticated, onLoggedOut }: UseAuthSessionO
   }
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetchJson("/api/auth/logout", {
+      method: "POST",
+      fallbackMessage: "Logout failed."
+    });
     onLoggedOut?.();
   }
 

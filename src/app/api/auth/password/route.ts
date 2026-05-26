@@ -8,7 +8,7 @@ import {
 } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
 import { parsePasswordChangeInput } from "@/lib/server/password-policy";
-import { handleRouteError, jsonError } from "@/lib/server/responses";
+import { handleRouteError, jsonError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return jsonError("Authentication required.", 401);
     }
 
-    const validation = parsePasswordChangeInput(await request.json().catch(() => ({})));
+    const validation = parsePasswordChangeInput(await readJsonBody(request));
     if (!validation.ok) {
       return jsonError(validation.error);
     }
