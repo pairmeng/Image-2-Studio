@@ -318,6 +318,7 @@ export function Topbar({
               <div className={`topbar-more ${topbarMenuOpen ? "is-open" : ""}`}>
                 <button
                   className="icon-button topbar-more-button"
+                  data-testid="topbar-more-button"
                   type="button"
                   title={t("moreActions")}
                   aria-label={t("moreActions")}
@@ -351,6 +352,7 @@ export function Topbar({
                     )}
                     <button
                       className="topbar-menu-item"
+                      data-testid="change-password-open"
                       type="button"
                       role="menuitem"
                       onClick={() => {

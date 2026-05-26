@@ -27,6 +27,7 @@
     "src/lib/server/password-policy.ts",
     "src/lib/server/responses.ts",
     "src/lib/types.ts",
+    "src/components/studio/utils/api-client.ts",
     "tests/**/*.ts"
   ],
   "exclude": [

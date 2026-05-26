@@ -37,6 +37,7 @@ import { isFinishedImageJobStatus } from "@/lib/job-monitor";
 import { StudioProvider, useStudioState } from "@/components/studio/state/studio-context";
 import { parseBatchPrompts } from "@/components/studio/utils/batch-prompts";
 import { getCopy } from "@/components/studio/utils/copy";
+import { isUnauthorizedError } from "@/components/studio/utils/api-client";
 import {
   formatDuration,
   getAspectRatioLabel,
@@ -557,8 +558,11 @@ function StudioAppContent() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function handleUnauthorized(response: Response) {
-    if (response.status !== 401) return false;
+  function handleUnauthorized(errorOrResponse: unknown) {
+    const unauthorized = errorOrResponse instanceof Response
+      ? errorOrResponse.status === 401
+      : isUnauthorizedError(errorOrResponse);
+    if (!unauthorized) return false;
 
     resetAuthenticatedState(locale === "zh" ? "登录已过期，请重新登录。" : "Your session expired. Please sign in again.");
     return true;

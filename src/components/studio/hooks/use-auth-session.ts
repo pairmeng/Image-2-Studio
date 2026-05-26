@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import type { PublicUser } from "@/lib/types";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 type UseAuthSessionOptions = {
   onAuthenticated?: () => void;
@@ -19,8 +20,7 @@ export function useAuthSession({ onAuthenticated, onLoggedOut }: UseAuthSessionO
   async function loadSession() {
     setAuthLoading(true);
     try {
-      const response = await fetch("/api/auth/me", { cache: "no-store" });
-      const body = (await response.json()) as { user: PublicUser | null; registrationOpen: boolean };
+      const body = await fetchJson<{ user: PublicUser | null; registrationOpen: boolean }>("/api/auth/me", { cache: "no-store" });
       setCurrentUser(body.user);
       setRegistrationOpen(body.registrationOpen);
     } finally {
@@ -33,21 +33,25 @@ export function useAuthSession({ onAuthenticated, onLoggedOut }: UseAuthSessionO
     setAuthError("");
 
     const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: authEmail, password: authPassword })
-    });
-    const body = (await response.json().catch(() => ({}))) as { error?: string; user?: PublicUser };
+    try {
+      const body = await fetchJson<{ user?: PublicUser }>(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: authEmail, password: authPassword }),
+        fallbackMessage: "Authentication failed."
+      });
 
-    if (!response.ok || !body.user) {
-      setAuthError(body.error ?? "Authentication failed.");
-      return;
+      if (!body.user) {
+        setAuthError("Authentication failed.");
+        return;
+      }
+
+      setCurrentUser(body.user);
+      setAuthPassword("");
+      onAuthenticated?.();
+    } catch (caught) {
+      setAuthError(caught instanceof Error ? caught.message : "Authentication failed.");
     }
-
-    setCurrentUser(body.user);
-    setAuthPassword("");
-    onAuthenticated?.();
   }
 
   async function logout() {
@@ -58,22 +62,27 @@ export function useAuthSession({ onAuthenticated, onLoggedOut }: UseAuthSessionO
   async function changePassword(input: { currentPassword: string; newPassword: string }) {
     setChangingPassword(true);
     try {
-      const response = await fetch("/api/auth/password", {
+      const body = await fetchJson<{ user?: PublicUser }>("/api/auth/password", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(input)
+        body: JSON.stringify(input),
+        fallbackMessage: "Password could not be changed."
       });
-      const body = (await response.json().catch(() => ({}))) as { error?: string; user?: PublicUser };
 
-      if (!response.ok || !body.user) {
+      if (!body.user) {
         return {
           ok: false,
-          error: body.error ?? "Password could not be changed."
+          error: "Password could not be changed."
         };
       }
 
       setCurrentUser(body.user);
       return { ok: true };
+    } catch (caught) {
+      return {
+        ok: false,
+        error: caught instanceof Error ? caught.message : "Password could not be changed."
+      };
     } finally {
       setChangingPassword(false);
     }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { HistoryResponse, ImageBatchResponse, ImageProjectResponse, ImageRecord, PromptTemplateResponse } from "@/lib/types";
 import { mergeHistoryRecords } from "@/lib/history-records";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 type LoadHistoryOptions = {
   reset?: boolean;
@@ -16,7 +17,7 @@ type UseGalleryDataOptions = {
     templatesLoadFailed: string;
     generationFailed: string;
   };
-  onUnauthorized: (response: Response) => boolean;
+  onUnauthorized: (errorOrResponse: unknown) => boolean;
   onError: (message: string) => void;
   onSelectFirstRecord: (recordId: string) => void;
 };
@@ -58,11 +59,10 @@ export function useGalleryData({
       const params = new URLSearchParams({ limit: String(pageSize) });
       if (cursor) params.set("cursor", cursor);
 
-      const response = await fetch(`/api/images/history?${params.toString()}`, { cache: "no-store" });
-      if (onUnauthorized(response)) return;
-      if (!response.ok) throw new Error(messages.historyLoadFailed);
-
-      const body = (await response.json()) as HistoryResponse;
+      const body = await fetchJson<HistoryResponse>(`/api/images/history?${params.toString()}`, {
+        cache: "no-store",
+        fallbackMessage: messages.historyLoadFailed
+      });
       const nextRecords = Array.isArray(body.records) ? body.records : [];
 
       setRecords((current) => options.reset ? nextRecords : mergeHistoryRecords(current, nextRecords));
@@ -70,6 +70,9 @@ export function useGalleryData({
       if (options.selectFirst !== false) {
         onSelectFirstRecord(nextRecords[0]?.id || "");
       }
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
     } finally {
       setHistoryLoading(false);
     }
@@ -77,33 +80,41 @@ export function useGalleryData({
 
   async function loadBatches() {
     try {
-      const response = await fetch("/api/images/batches?limit=30", { cache: "no-store" });
-      if (onUnauthorized(response)) return;
-      if (!response.ok) throw new Error(messages.batchesLoadFailed);
-
-      const body = (await response.json()) as { batches?: ImageBatchResponse[] };
+      const body = await fetchJson<{ batches?: ImageBatchResponse[] }>("/api/images/batches?limit=30", {
+        cache: "no-store",
+        fallbackMessage: messages.batchesLoadFailed
+      });
       setBatches(Array.isArray(body.batches) ? body.batches : []);
     } catch (loadError) {
+      if (onUnauthorized(loadError)) return;
       onError(loadError instanceof Error ? loadError.message : messages.generationFailed);
     }
   }
 
   async function loadProjects() {
-    const response = await fetch("/api/images/projects", { cache: "no-store" });
-    if (onUnauthorized(response)) return;
-    if (!response.ok) throw new Error(messages.projectsLoadFailed);
-
-    const body = (await response.json()) as { projects?: ImageProjectResponse[] };
-    setProjects(Array.isArray(body.projects) ? body.projects : []);
+    try {
+      const body = await fetchJson<{ projects?: ImageProjectResponse[] }>("/api/images/projects", {
+        cache: "no-store",
+        fallbackMessage: messages.projectsLoadFailed
+      });
+      setProjects(Array.isArray(body.projects) ? body.projects : []);
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
+    }
   }
 
   async function loadTemplates() {
-    const response = await fetch("/api/images/templates", { cache: "no-store" });
-    if (onUnauthorized(response)) return;
-    if (!response.ok) throw new Error(messages.templatesLoadFailed);
-
-    const body = (await response.json()) as { templates?: PromptTemplateResponse[] };
-    setTemplates(Array.isArray(body.templates) ? body.templates : []);
+    try {
+      const body = await fetchJson<{ templates?: PromptTemplateResponse[] }>("/api/images/templates", {
+        cache: "no-store",
+        fallbackMessage: messages.templatesLoadFailed
+      });
+      setTemplates(Array.isArray(body.templates) ? body.templates : []);
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
+    }
   }
 
   async function loadGalleryMeta() {

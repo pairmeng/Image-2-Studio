@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogResponse } from "@/lib/types";
 import type { ProviderId } from "@/lib/models";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 export type Branding = {
   siteTitle: string;
@@ -35,7 +36,7 @@ type UseStudioCatalogOptions = {
     settingsSaveFailed: string;
     keySaved: string;
   };
-  onUnauthorized: (response: Response) => boolean;
+  onUnauthorized: (errorOrResponse: unknown) => boolean;
   onActiveProviderChange: (provider: ProviderId) => void;
   onCatalogDefaultSelection: (selection: CatalogDefaultSelection) => void;
 };
@@ -79,61 +80,70 @@ export function useStudioCatalog({
   }
 
   async function loadBranding() {
-    const response = await fetch("/api/app/branding", { cache: "no-store" });
-    if (!response.ok) return;
-
-    const body = (await response.json().catch(() => ({}))) as Partial<Branding>;
-    setBranding({
-      siteTitle: typeof body.siteTitle === "string" && body.siteTitle.trim() ? body.siteTitle.trim() : defaultSiteTitle,
-      faviconUrl: typeof body.faviconUrl === "string" ? body.faviconUrl.trim() : "",
-      logoUrl: typeof body.logoUrl === "string" ? body.logoUrl.trim() : ""
-    });
+    try {
+      const body = await fetchJson<Partial<Branding>>("/api/app/branding", { cache: "no-store" });
+      setBranding({
+        siteTitle: typeof body.siteTitle === "string" && body.siteTitle.trim() ? body.siteTitle.trim() : defaultSiteTitle,
+        faviconUrl: typeof body.faviconUrl === "string" ? body.faviconUrl.trim() : "",
+        logoUrl: typeof body.logoUrl === "string" ? body.logoUrl.trim() : ""
+      });
+    } catch {
+      // Branding is optional and should not block the studio shell.
+    }
   }
 
   async function loadCatalog() {
-    const response = await fetch("/api/images/catalog", { cache: "no-store" });
-    if (onUnauthorized(response)) return;
-    if (!response.ok) throw new Error(messages.catalogLoadFailed);
+    try {
+      const body = await fetchJson<CatalogResponse>("/api/images/catalog", {
+        cache: "no-store",
+        fallbackMessage: messages.catalogLoadFailed
+      });
+      if (!Array.isArray(body.providers) || !Array.isArray(body.models)) {
+        throw new Error(messages.catalogLoadFailed);
+      }
 
-    const body = (await response.json()) as CatalogResponse;
-    if (!Array.isArray(body.providers) || !Array.isArray(body.models)) {
-      throw new Error(messages.catalogLoadFailed);
+      setCatalog(body);
+
+      const preferred = body.providers.find((item) => item.provider === "openai" && item.configured)
+        ?? body.providers.find((item) => item.configured)
+        ?? body.providers[0];
+      if (!preferred) return;
+
+      const preferredModel = body.models.find((item) => item.provider === preferred.provider);
+
+      onCatalogDefaultSelection({
+        provider: preferred.provider,
+        modelId: preferredModel?.modelId,
+        defaultAspectRatio: preferredModel?.defaultAspectRatio ?? "3:4",
+        defaultResolution: preferred.supportsCustomSize ? defaultResolution : officialOpenAIResolution,
+        defaultQuality: preferredModel?.defaultQuality ?? "medium",
+        defaultInputFidelity: preferredModel?.inputFidelityOptions?.[0] ?? "high"
+      });
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
     }
-
-    setCatalog(body);
-
-    const preferred = body.providers.find((item) => item.provider === "openai" && item.configured)
-      ?? body.providers.find((item) => item.configured)
-      ?? body.providers[0];
-    if (!preferred) return;
-
-    const preferredModel = body.models.find((item) => item.provider === preferred.provider);
-
-    onCatalogDefaultSelection({
-      provider: preferred.provider,
-      modelId: preferredModel?.modelId,
-      defaultAspectRatio: preferredModel?.defaultAspectRatio ?? "3:4",
-      defaultResolution: preferred.supportsCustomSize ? defaultResolution : officialOpenAIResolution,
-      defaultQuality: preferredModel?.defaultQuality ?? "medium",
-      defaultInputFidelity: preferredModel?.inputFidelityOptions?.[0] ?? "high"
-    });
   }
 
   async function loadProviderSettings() {
-    const response = await fetch("/api/settings/provider", { cache: "no-store" });
-    if (onUnauthorized(response)) return;
-    if (!response.ok) throw new Error(messages.settingsLoadFailed);
+    try {
+      const body = await fetchJson<ProviderSettingsResponse>("/api/settings/provider", {
+        cache: "no-store",
+        fallbackMessage: messages.settingsLoadFailed
+      });
 
-    const body = (await response.json()) as ProviderSettingsResponse;
+      if (body.activeProvider) {
+        onActiveProviderChange(body.activeProvider);
+      }
 
-    if (body.activeProvider) {
-      onActiveProviderChange(body.activeProvider);
+      setOpenaiBaseUrl(body.baseUrls?.openai ?? "");
+      setOpenaiModel(body.models?.openai ?? "");
+      setUserOpenaiKeyConfigured(Boolean(body.keys?.openai?.configured && body.keys.openai.source === "user"));
+      setProviderSettingsLoaded(true);
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
     }
-
-    setOpenaiBaseUrl(body.baseUrls?.openai ?? "");
-    setOpenaiModel(body.models?.openai ?? "");
-    setUserOpenaiKeyConfigured(Boolean(body.keys?.openai?.configured && body.keys.openai.source === "user"));
-    setProviderSettingsLoaded(true);
   }
 
   async function saveProviderSettings() {
@@ -141,7 +151,7 @@ export function useStudioCatalog({
     setSettingsMessage("");
 
     try {
-      const response = await fetch("/api/settings/provider", {
+      await fetchJson("/api/settings/provider", {
         method: "POST",
         headers: {
           "content-type": "application/json"
@@ -157,14 +167,9 @@ export function useStudioCatalog({
           models: {
             openai: openaiModel
           }
-        })
+        }),
+        fallbackMessage: messages.settingsSaveFailed
       });
-
-      if (onUnauthorized(response)) return;
-
-      if (!response.ok) {
-        throw new Error(messages.settingsSaveFailed);
-      }
 
       setOpenaiKey("");
       setUserOpenaiKeyConfigured(Boolean(openaiKey.trim()) || userOpenaiKeyConfigured);
@@ -172,6 +177,7 @@ export function useStudioCatalog({
       setSettingsMessage(messages.keySaved);
       await loadCatalog();
     } catch (caught) {
+      if (onUnauthorized(caught)) return;
       setSettingsMessage(caught instanceof Error ? caught.message : messages.settingsSaveFailed);
     } finally {
       setSavingSettings(false);

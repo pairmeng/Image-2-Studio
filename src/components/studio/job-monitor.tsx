@@ -168,36 +168,36 @@ export function JobMonitor({
                     </div>
                     <div className="job-monitor-buttons">
                       {job.batchId ? (
-                        <button className="text-button tiny" type="button" title={actionTitle} aria-label={actionLabel} disabled={actionDisabled} onClick={() => onTrackJob(job)}>
+                        <button className="text-button tiny" data-testid="job-monitor-track" type="button" title={actionTitle} aria-label={actionLabel} disabled={actionDisabled} onClick={() => onTrackJob(job)}>
                           <Layers3 size={14} />
                           {labels.openBatch}
                         </button>
                       ) : (
-                        <button className="text-button tiny" type="button" title={actionTitle} aria-label={actionLabel} disabled={actionDisabled} onClick={() => onTrackJob(job)}>
+                        <button className="text-button tiny" data-testid="job-monitor-track" type="button" title={actionTitle} aria-label={actionLabel} disabled={actionDisabled} onClick={() => onTrackJob(job)}>
                           {isActiveJob ? <RefreshCw size={14} /> : <Eye size={14} />}
                           {actionLabel}
                         </button>
                       )}
                       {isPausableImageJobStatus(job.status) && (
-                        <button className="text-button tiny" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onChangeJobState(job.id, "pause")}>
+                        <button className="text-button tiny" data-testid="job-monitor-pause" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onChangeJobState(job.id, "pause")}>
                           {jobActionId === job.id ? <Loader2 className="spin" size={14} /> : <Pause size={14} />}
                           {labels.batchPause}
                         </button>
                       )}
                       {isResumableImageJobStatus(job.status) && (
-                        <button className="text-button tiny" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onChangeJobState(job.id, "resume")}>
+                        <button className="text-button tiny" data-testid="job-monitor-resume" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onChangeJobState(job.id, "resume")}>
                           {jobActionId === job.id ? <Loader2 className="spin" size={14} /> : <Play size={14} />}
                           {labels.batchResume}
                         </button>
                       )}
                       {isForceKillableImageJobStatus(job.status) && (
-                        <button className="text-button tiny danger-button" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onChangeJobState(job.id, "kill")}>
+                        <button className="text-button tiny danger-button" data-testid="job-monitor-kill" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onChangeJobState(job.id, "kill")}>
                           {jobActionId === job.id ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
                           {labels.jobKill}
                         </button>
                       )}
                       {isRetryableImageJobStatus(job.status) && !job.batchId && (
-                        <button className="text-button tiny" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onRetryStandaloneJob(job)}>
+                        <button className="text-button tiny" data-testid="job-monitor-retry" type="button" disabled={Boolean(trackingJobId || jobActionId)} onClick={() => onRetryStandaloneJob(job)}>
                           <RefreshCw size={14} />
                           {labels.batchRetry}
                         </button>
@@ -211,15 +211,15 @@ export function JobMonitor({
             <p className="job-monitor-empty">{jobsLoading ? labels.loadingMore : labels.noRecentJobs}</p>
           )}
           <div className="activity-popover-actions">
-            <button className="text-button tiny danger-button" type="button" disabled={clearingFinished || finishedCount === 0} onClick={onClearFinished}>
+            <button className="text-button tiny danger-button" data-testid="job-monitor-clear-finished" type="button" disabled={clearingFinished || finishedCount === 0} onClick={onClearFinished}>
               {clearingFinished ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
               {labels.clearFinished}
             </button>
-            <button className="text-button tiny" type="button" disabled={clearingAlerts} onClick={onClearAlerts}>
+            <button className="text-button tiny" data-testid="job-monitor-clear-alerts" type="button" disabled={clearingAlerts} onClick={onClearAlerts}>
               {clearingAlerts ? <Loader2 className="spin" size={14} /> : <Check size={14} />}
               {labels.clearAlerts}
             </button>
-            <button className="text-button tiny" type="button" disabled={historyLoading} onClick={onRefreshGallery}>
+            <button className="text-button tiny" data-testid="job-monitor-refresh-gallery" type="button" disabled={historyLoading} onClick={onRefreshGallery}>
               {historyLoading ? <Loader2 className="spin" size={14} /> : <RefreshCw size={14} />}
               {labels.refreshGallery}
             </button>

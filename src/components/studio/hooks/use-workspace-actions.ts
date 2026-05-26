@@ -4,12 +4,13 @@ import { isActiveImageJobStatus } from "@/lib/image-job-state";
 import { batchItemToGenerationItem, type BatchGenerationItem } from "@/components/studio/hooks/use-image-jobs";
 import { useStudioState } from "@/components/studio/state/studio-context";
 import type { Locale } from "@/components/studio/utils/copy";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 type UseWorkspaceActionsOptions = {
   locale: Locale;
   loadJobs: () => Promise<unknown>;
   loadGalleryMeta: () => Promise<unknown>;
-  handleUnauthorized: (response: Response) => boolean;
+  handleUnauthorized: (errorOrResponse: unknown) => boolean;
   closeLightbox: () => void;
   setBatchItems: Dispatch<SetStateAction<BatchGenerationItem[]>>;
   setBatchRunning: Dispatch<SetStateAction<boolean>>;
@@ -47,14 +48,23 @@ export function useWorkspaceActions({
   }
 
   async function loadBatchDetail(batchId: string, options: { showInStudio?: boolean } = {}) {
-    const response = await fetch(`/api/images/batches/${batchId}`, { cache: "no-store" });
-    if (handleUnauthorized(response)) return null;
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error || (locale === "zh" ? "批次详情加载失败。" : "Batch detail could not be loaded."));
+    const fallbackMessage = locale === "zh" ? "批次详情加载失败。" : "Batch detail could not be loaded.";
+    let batch: ImageBatchDetailResponse;
+
+    try {
+      batch = await fetchJson<ImageBatchDetailResponse>(`/api/images/batches/${batchId}`, {
+        cache: "no-store",
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return null;
+      throw caught;
     }
 
-    const batch = (await response.json()) as ImageBatchDetailResponse;
+    if (!batch.id || !Array.isArray(batch.items)) {
+      throw new Error(fallbackMessage);
+    }
+
     const active = isBatchDetailActive(batch);
     setActiveBatchId(batch.id);
     setBatchItems(batch.items.map(batchItemToGenerationItem));

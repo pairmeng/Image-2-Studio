@@ -61,7 +61,7 @@ export function AccountPasswordDialog({
   }
 
   return (
-    <div className="account-dialog" role="dialog" aria-modal="true" aria-label={t("changePassword")}>
+    <div className="account-dialog" data-testid="account-password-dialog" role="dialog" aria-modal="true" aria-label={t("changePassword")}>
       <button className="account-dialog-scrim" type="button" aria-label={t("closePreview")} onClick={onClose} />
       <form className="account-dialog-card" onSubmit={handleSubmit}>
         <div className="drawer-head">
@@ -77,6 +77,7 @@ export function AccountPasswordDialog({
           <span>{t("currentPassword")}</span>
           <input
             className="field"
+            data-testid="account-current-password"
             value={currentPassword}
             onChange={(event) => setCurrentPassword(event.target.value)}
             type="password"
@@ -88,6 +89,7 @@ export function AccountPasswordDialog({
           <span>{t("newPassword")}</span>
           <input
             className="field"
+            data-testid="account-new-password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             type="password"
@@ -99,6 +101,7 @@ export function AccountPasswordDialog({
           <span>{t("confirmPassword")}</span>
           <input
             className="field"
+            data-testid="account-confirm-password"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             type="password"
@@ -112,7 +115,7 @@ export function AccountPasswordDialog({
             ? "修改后会清除其它设备上的登录状态，当前窗口会继续保持登录。"
             : "Changing your password signs out other sessions while keeping this window signed in."}
         </p>
-        <button className="primary-button drawer-save" type="submit" disabled={changing}>
+        <button className="primary-button drawer-save" data-testid="account-save-password" type="submit" disabled={changing}>
           {changing ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
           {changing ? t("saving") : t("savePassword")}
         </button>

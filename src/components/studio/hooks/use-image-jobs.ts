@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ImageBatchDetailResponse, ImageBatchItemResponse, ImageJobResponse, ImageJobsResponse, PublicUser } from "@/lib/types";
 import type { ImageMode, ProviderId } from "@/lib/models";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 export type BatchGenerationStatus = "queued" | "creating" | "pending" | "paused" | "running" | "succeeded" | "failed";
 
@@ -36,7 +37,7 @@ type UseImageJobsOptions = {
     jobKillFailed: string;
     generationFailed: string;
   };
-  onUnauthorized: (response: Response) => boolean;
+  onUnauthorized: (errorOrResponse: unknown) => boolean;
   onError: (message: string) => void;
   onCurrentUserChange: (user: PublicUser) => void;
 };
@@ -164,12 +165,14 @@ export function useImageJobs({
   async function loadJobs(scope: JobScope = "recent") {
     setJobsLoading(true);
     try {
-      const response = await fetch(`/api/images/jobs?scope=${scope}&limit=30`, { cache: "no-store" });
-      if (onUnauthorized(response)) return;
-      if (!response.ok) throw new Error(messages.jobsLoadFailed);
-
-      const body = (await response.json()) as ImageJobsResponse;
+      const body = await fetchJson<ImageJobsResponse>(`/api/images/jobs?scope=${scope}&limit=30`, {
+        cache: "no-store",
+        fallbackMessage: messages.jobsLoadFailed
+      });
       setJobs(Array.isArray(body.jobs) ? body.jobs : []);
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
     } finally {
       setJobsLoading(false);
     }
@@ -182,17 +185,18 @@ export function useImageJobs({
     setJobMonitorClearing(true);
 
     try {
-      const response = await fetch("/api/images/jobs/monitor/clear", { method: "POST" });
-      const body = (await response.json().catch(() => ({}))) as { error?: string; user?: PublicUser };
+      const body = await fetchJson<{ user?: PublicUser }>("/api/images/jobs/monitor/clear", {
+        method: "POST",
+        fallbackMessage: messages.clearAlertsFailed
+      });
 
-      if (onUnauthorized(response)) return;
-
-      if (!response.ok || !body.user) {
-        throw new Error(body.error || messages.clearAlertsFailed);
+      if (!body.user) {
+        throw new Error(messages.clearAlertsFailed);
       }
 
       onCurrentUserChange(body.user);
     } catch (caught) {
+      if (onUnauthorized(caught)) return;
       onError(caught instanceof Error ? caught.message : messages.clearAlertsFailed);
     } finally {
       setJobMonitorClearing(false);
@@ -206,18 +210,19 @@ export function useImageJobs({
     setJobMonitorFinishedClearing(true);
 
     try {
-      const response = await fetch("/api/images/jobs/monitor/clear-finished", { method: "POST" });
-      const body = (await response.json().catch(() => ({}))) as { error?: string; user?: PublicUser };
+      const body = await fetchJson<{ user?: PublicUser }>("/api/images/jobs/monitor/clear-finished", {
+        method: "POST",
+        fallbackMessage: messages.clearFinishedFailed
+      });
 
-      if (onUnauthorized(response)) return;
-
-      if (!response.ok || !body.user) {
-        throw new Error(body.error || messages.clearFinishedFailed);
+      if (!body.user) {
+        throw new Error(messages.clearFinishedFailed);
       }
 
       onCurrentUserChange(body.user);
       setJobs((current) => current.filter((job) => job.status !== "succeeded" && job.status !== "failed"));
     } catch (caught) {
+      if (onUnauthorized(caught)) return;
       onError(caught instanceof Error ? caught.message : messages.clearFinishedFailed);
     } finally {
       setJobMonitorFinishedClearing(false);
@@ -232,13 +237,13 @@ export function useImageJobs({
     setJobActionId(jobId);
 
     try {
-      const response = await fetch(`/api/images/jobs/${jobId}/${action}`, { method: "POST" });
-      const body = (await response.json().catch(() => ({}))) as Partial<ImageJobResponse> & { error?: string };
+      const body = await fetchJson<Partial<ImageJobResponse>>(`/api/images/jobs/${jobId}/${action}`, {
+        method: "POST",
+        fallbackMessage: action === "kill" ? messages.jobKillFailed : messages.generationFailed
+      });
 
-      if (onUnauthorized(response)) return null;
-
-      if (!response.ok || !body.id || !body.status) {
-        throw new Error(body.error || (action === "kill" ? messages.jobKillFailed : messages.generationFailed));
+      if (!body.id || !body.status) {
+        throw new Error(action === "kill" ? messages.jobKillFailed : messages.generationFailed);
       }
 
       const job = body as ImageJobResponse;
@@ -246,6 +251,7 @@ export function useImageJobs({
       await loadJobs();
       return job;
     } catch (caught) {
+      if (onUnauthorized(caught)) return null;
       onError(caught instanceof Error ? caught.message : (action === "kill" ? messages.jobKillFailed : messages.generationFailed));
       return null;
     } finally {

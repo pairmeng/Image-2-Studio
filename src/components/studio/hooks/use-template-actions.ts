@@ -6,12 +6,13 @@ import {
 } from "@/components/studio/utils/batch-prompts";
 import { useStudioState } from "@/components/studio/state/studio-context";
 import type { Locale } from "@/components/studio/utils/copy";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 type UseTemplateActionsOptions = {
   locale: Locale;
   promptRef: RefObject<HTMLTextAreaElement | null>;
   t: (key: string) => string;
-  handleUnauthorized: (response: Response) => boolean;
+  handleUnauthorized: (errorOrResponse: unknown) => boolean;
   loadTemplates: () => Promise<void>;
 };
 
@@ -61,22 +62,29 @@ export function useTemplateActions({
     }
 
     const title = templateTitle.trim() || content.split(/\s+/).slice(0, 8).join(" ").slice(0, 60) || "Prompt template";
-    const response = await fetch("/api/images/templates", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title,
-        category: templateCategory.trim() || "Default",
-        mode: templateMode,
-        content
-      })
-    });
-    const body = (await response.json().catch(() => ({}))) as Partial<PromptTemplateResponse> & { error?: string };
+    const fallbackMessage = locale === "zh" ? "模板保存失败。" : "Template could not be saved.";
+    let body: Partial<PromptTemplateResponse>;
 
-    if (handleUnauthorized(response)) return;
+    try {
+      body = await fetchJson<Partial<PromptTemplateResponse>>("/api/images/templates", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title,
+          category: templateCategory.trim() || "Default",
+          mode: templateMode,
+          content
+        }),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
+      return;
+    }
 
-    if (!response.ok || !body.id) {
-      setError(body.error || (locale === "zh" ? "模板保存失败。" : "Template could not be saved."));
+    if (!body.id) {
+      setError(fallbackMessage);
       return;
     }
 
@@ -96,17 +104,15 @@ export function useTemplateActions({
     setError("");
 
     try {
-      const response = await fetch(`/api/images/templates/${template.id}`, { method: "DELETE" });
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-
-      if (handleUnauthorized(response)) return;
-
-      if (!response.ok) {
-        throw new Error(body.error || (locale === "zh" ? "模板删除失败。" : "Template could not be deleted."));
-      }
+      const fallbackMessage = locale === "zh" ? "模板删除失败。" : "Template could not be deleted.";
+      await fetchJson(`/api/images/templates/${template.id}`, {
+        method: "DELETE",
+        fallbackMessage
+      });
 
       await loadTemplates();
     } catch (caught) {
+      if (handleUnauthorized(caught)) return;
       setError(caught instanceof Error ? caught.message : (locale === "zh" ? "模板删除失败。" : "Template could not be deleted."));
     } finally {
       setDeletingTemplateId("");

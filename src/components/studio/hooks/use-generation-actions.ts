@@ -34,6 +34,7 @@ import {
   getPromptFormat
 } from "@/components/studio/utils/batch-prompts";
 import type { Locale } from "@/components/studio/utils/copy";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 type StudioRunInput = {
   id: string;
@@ -73,7 +74,7 @@ type UseGenerationActionsOptions = {
   t: (key: string) => string;
   isBatchDetailActive: (batch: ImageBatchDetailResponse) => boolean;
   loadBatchDetail: (batchId: string, options?: { showInStudio?: boolean }) => Promise<ImageBatchDetailResponse | null>;
-  handleUnauthorized: (response: Response) => boolean;
+  handleUnauthorized: (errorOrResponse: unknown) => boolean;
   closeLightbox: () => void;
   loadHistory: (options?: LoadHistoryOptions) => Promise<unknown>;
   loadBatches: () => Promise<unknown>;
@@ -454,16 +455,16 @@ export function useGenerationActions({
   }
 
   async function createImageJob(promptValue: string, batchMeta?: { batchId: string; itemId: string }) {
-    const response = await fetch("/api/images/create", {
-      method: "POST",
-      body: buildImageJobFormData(promptValue, batchMeta)
-    });
-    const body = (await response.json().catch(() => ({}))) as Partial<CreateImageJobResponse> & { error?: string };
-
-    if (handleUnauthorized(response)) return null;
-
-    if (!response.ok) {
-      throw new Error(body.error || t("generationFailed"));
+    let body: Partial<CreateImageJobResponse>;
+    try {
+      body = await fetchJson<Partial<CreateImageJobResponse>>("/api/images/create", {
+        method: "POST",
+        body: buildImageJobFormData(promptValue, batchMeta),
+        fallbackMessage: t("generationFailed")
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return null;
+      throw caught;
     }
 
     if (!body.jobId) {
@@ -477,16 +478,22 @@ export function useGenerationActions({
   }
 
   async function startBatch(prompts: string[]) {
-    const response = await fetch("/api/images/batches/start", {
-      method: "POST",
-      body: buildBatchStartFormData(prompts)
-    });
-    const body = (await response.json().catch(() => ({}))) as Partial<ImageBatchDetailResponse> & { error?: string };
+    const fallbackMessage = locale === "zh" ? "批次启动失败。" : "Batch could not be started.";
+    let body: Partial<ImageBatchDetailResponse>;
 
-    if (handleUnauthorized(response)) return null;
+    try {
+      body = await fetchJson<Partial<ImageBatchDetailResponse>>("/api/images/batches/start", {
+        method: "POST",
+        body: buildBatchStartFormData(prompts),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return null;
+      throw caught;
+    }
 
-    if (!response.ok || !body.id || !Array.isArray(body.items)) {
-      throw new Error(body.error || (locale === "zh" ? "批次启动失败。" : "Batch could not be started."));
+    if (!body.id || !Array.isArray(body.items)) {
+      throw new Error(fallbackMessage);
     }
 
     return body as ImageBatchDetailResponse;
@@ -545,19 +552,26 @@ export function useGenerationActions({
     return message.includes("session expired") || message.includes("登录已过期");
   }
 
+  function getSessionExpiredMessage() {
+    return locale === "zh" ? "登录已过期，请重新登录。" : "Your session expired. Please sign in again.";
+  }
+
   async function pollImageJob(jobId: string) {
     const deadline = Date.now() + JOB_POLL_TIMEOUT_MS;
 
     while (Date.now() < deadline) {
-      const response = await fetch(`/api/images/jobs/${jobId}`, { cache: "no-store" });
-      const body = (await response.json().catch(() => ({}))) as Partial<ImageJobResponse> & { error?: string };
+      let body: Partial<ImageJobResponse>;
 
-      if (handleUnauthorized(response)) {
-        throw new Error(locale === "zh" ? "登录已过期，请重新登录。" : "Your session expired. Please sign in again.");
-      }
-
-      if (!response.ok) {
-        throw new Error(body.error || t("generationFailed"));
+      try {
+        body = await fetchJson<Partial<ImageJobResponse>>(`/api/images/jobs/${jobId}`, {
+          cache: "no-store",
+          fallbackMessage: t("generationFailed")
+        });
+      } catch (caught) {
+        if (handleUnauthorized(caught)) {
+          throw new Error(getSessionExpiredMessage());
+        }
+        throw caught;
       }
 
       const job = body.id && body.status ? body as ImageJobResponse : null;
@@ -595,15 +609,23 @@ export function useGenerationActions({
     const shouldUpdateStudio = () => !options.runId || isActiveStudioRun(options.runId);
 
     while (Date.now() < deadline) {
-      const response = await fetch(`/api/images/batches/${batchId}`, { cache: "no-store" });
-      const body = (await response.json().catch(() => ({}))) as Partial<ImageBatchDetailResponse> & { error?: string };
+      const fallbackMessage = locale === "zh" ? "批次状态加载失败。" : "Batch status could not be loaded.";
+      let body: Partial<ImageBatchDetailResponse>;
 
-      if (handleUnauthorized(response)) {
-        throw new Error(locale === "zh" ? "登录已过期，请重新登录。" : "Your session expired. Please sign in again.");
+      try {
+        body = await fetchJson<Partial<ImageBatchDetailResponse>>(`/api/images/batches/${batchId}`, {
+          cache: "no-store",
+          fallbackMessage
+        });
+      } catch (caught) {
+        if (handleUnauthorized(caught)) {
+          throw new Error(getSessionExpiredMessage());
+        }
+        throw caught;
       }
 
-      if (!response.ok || !body.id || !Array.isArray(body.items)) {
-        throw new Error(body.error || (locale === "zh" ? "批次状态加载失败。" : "Batch status could not be loaded."));
+      if (!body.id || !Array.isArray(body.items)) {
+        throw new Error(fallbackMessage);
       }
 
       latest = body as ImageBatchDetailResponse;
@@ -922,17 +944,23 @@ export function useGenerationActions({
   async function retryBatchOnServer(itemIds: string[]) {
     if (!activeBatchId || itemIds.length === 0) return;
 
-    const response = await fetch(`/api/images/batches/${activeBatchId}/retry`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ itemIds })
-    });
-    const body = (await response.json().catch(() => ({}))) as Partial<ImageBatchDetailResponse> & { error?: string };
+    const fallbackMessage = locale === "zh" ? "重试失败。" : "Retry failed.";
+    let body: Partial<ImageBatchDetailResponse>;
 
-    if (handleUnauthorized(response)) return;
+    try {
+      body = await fetchJson<Partial<ImageBatchDetailResponse>>(`/api/images/batches/${activeBatchId}/retry`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ itemIds }),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      throw caught;
+    }
 
-    if (!response.ok || !body.id || !Array.isArray(body.items)) {
-      throw new Error(body.error || (locale === "zh" ? "重试失败。" : "Retry failed."));
+    if (!body.id || !Array.isArray(body.items)) {
+      throw new Error(fallbackMessage);
     }
 
     const batch = body as ImageBatchDetailResponse;
@@ -1075,13 +1103,14 @@ export function useGenerationActions({
     setTrackingJobId(job.id);
 
     try {
-      const response = await fetch(`/api/images/jobs/${job.id}/retry`, { method: "POST" });
-      const body = (await response.json().catch(() => ({}))) as Partial<CreateImageJobResponse> & { error?: string };
+      const fallbackMessage = locale === "zh" ? "任务重试失败。" : "Job retry failed.";
+      const body = await fetchJson<Partial<CreateImageJobResponse>>(`/api/images/jobs/${job.id}/retry`, {
+        method: "POST",
+        fallbackMessage
+      });
 
-      if (handleUnauthorized(response)) return;
-
-      if (!response.ok || !body.jobId) {
-        throw new Error(body.error || (locale === "zh" ? "任务重试失败。" : "Job retry failed."));
+      if (!body.jobId) {
+        throw new Error(fallbackMessage);
       }
 
       await loadJobs();
@@ -1093,6 +1122,7 @@ export function useGenerationActions({
         setActiveView("studio");
       }
     } catch (caught) {
+      if (handleUnauthorized(caught)) return;
       setError(caught instanceof Error ? caught.message : t("generationFailed"));
       await loadJobs();
     } finally {

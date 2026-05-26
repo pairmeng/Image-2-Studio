@@ -1,6 +1,7 @@
 import type { ImageProjectResponse, ImageRecord } from "@/lib/types";
 import type { Locale } from "@/components/studio/utils/copy";
 import { useStudioState } from "@/components/studio/state/studio-context";
+import { fetchBlob, fetchJson } from "@/components/studio/utils/api-client";
 
 type UseHistoryActionsOptions = {
   locale: Locale;
@@ -8,7 +9,7 @@ type UseHistoryActionsOptions = {
   selectedHistoryRecords: ImageRecord[];
   lightboxRecordId: string;
   t: (key: string) => string;
-  handleUnauthorized: (response: Response) => boolean;
+  handleUnauthorized: (errorOrResponse: unknown) => boolean;
   closeLightbox: () => void;
   loadHistory: () => Promise<unknown>;
   loadProjects: () => Promise<void>;
@@ -99,18 +100,12 @@ export function useHistoryActions({
     setDeletingHistoryIds((current) => Array.from(new Set([...current, ...uniqueIds])));
 
     try {
-      const response = await fetch("/api/images/history", {
+      const body = await fetchJson<{ deletedIds?: unknown }>("/api/images/history", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids: uniqueIds })
+        body: JSON.stringify({ ids: uniqueIds }),
+        fallbackMessage: locale === "zh" ? "图片删除失败。" : "Images could not be deleted."
       });
-      const body = (await response.json().catch(() => ({}))) as { deletedIds?: unknown; error?: string };
-
-      if (handleUnauthorized(response)) return;
-
-      if (!response.ok) {
-        throw new Error(body.error || (locale === "zh" ? "图片删除失败。" : "Images could not be deleted."));
-      }
 
       const deletedIds = Array.isArray(body.deletedIds)
         ? body.deletedIds.filter((id): id is string => typeof id === "string")
@@ -128,6 +123,7 @@ export function useHistoryActions({
       setCopiedId((current) => deletedSet.has(current) ? "" : current);
       setCopiedPromptId((current) => deletedSet.has(current) ? "" : current);
     } catch (caught) {
+      if (handleUnauthorized(caught)) return;
       setError(caught instanceof Error ? caught.message : (locale === "zh" ? "图片删除失败。" : "Images could not be deleted."));
     } finally {
       setDeletingHistoryIds((current) => current.filter((id) => !uniqueIds.includes(id)));
@@ -138,17 +134,24 @@ export function useHistoryActions({
     const name = newProjectName.trim();
     if (!name) return;
 
-    const response = await fetch("/api/images/projects", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    const body = (await response.json().catch(() => ({}))) as Partial<ImageProjectResponse> & { error?: string };
+    const fallbackMessage = locale === "zh" ? "项目创建失败。" : "Project could not be created.";
+    let body: Partial<ImageProjectResponse>;
 
-    if (handleUnauthorized(response)) return;
+    try {
+      body = await fetchJson<Partial<ImageProjectResponse>>("/api/images/projects", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
+      return;
+    }
 
-    if (!response.ok || !body.id) {
-      setError(body.error || (locale === "zh" ? "项目创建失败。" : "Project could not be created."));
+    if (!body.id) {
+      setError(fallbackMessage);
       return;
     }
 
@@ -167,21 +170,21 @@ export function useHistoryActions({
   async function assignSelectedImages() {
     if (selectedHistoryIds.length === 0) return;
 
-    const response = await fetch("/api/images/projects/assign", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        recordIds: selectedHistoryIds,
-        projectId: assignProjectId || null,
-        tags: parseAssignTags()
-      })
-    });
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-
-    if (handleUnauthorized(response)) return;
-
-    if (!response.ok) {
-      setError(body.error || (locale === "zh" ? "图片整理失败。" : "Images could not be organized."));
+    const fallbackMessage = locale === "zh" ? "图片整理失败。" : "Images could not be organized.";
+    try {
+      await fetchJson("/api/images/projects/assign", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          recordIds: selectedHistoryIds,
+          projectId: assignProjectId || null,
+          tags: parseAssignTags()
+        }),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
       return;
     }
 
@@ -192,21 +195,21 @@ export function useHistoryActions({
   async function exportSelectedImagesZip() {
     if (selectedHistoryIds.length === 0) return;
 
-    const response = await fetch("/api/images/export", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ids: selectedHistoryIds, naming: "prompt" })
-    });
-
-    if (handleUnauthorized(response)) return;
-
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(body.error || (locale === "zh" ? "导出失败。" : "Export failed."));
+    let blob: Blob;
+    const fallbackMessage = locale === "zh" ? "导出失败。" : "Export failed.";
+    try {
+      blob = await fetchBlob("/api/images/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: selectedHistoryIds, naming: "prompt" }),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
       return;
     }
 
-    const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -224,14 +227,10 @@ export function useHistoryActions({
     setError("");
 
     try {
-      const response = await fetch("/api/images/history/clear", { method: "POST" });
-
-      if (handleUnauthorized(response)) return;
-
-      if (!response.ok) {
-        setError(t("clearHistoryFailed"));
-        return;
-      }
+      await fetchJson("/api/images/history/clear", {
+        method: "POST",
+        fallbackMessage: t("clearHistoryFailed")
+      });
 
       setRecords([]);
       setHistoryNextCursor(undefined);
@@ -243,8 +242,9 @@ export function useHistoryActions({
       setDeletingHistoryIds([]);
       setCopiedId("");
       setCopiedPromptId("");
-    } catch {
-      setError(t("clearHistoryFailed"));
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : t("clearHistoryFailed"));
     }
   }
 

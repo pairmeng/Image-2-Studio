@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ProviderId } from "@/lib/models";
 import type { PublicUser } from "@/lib/types";
+import { fetchJson } from "@/components/studio/utils/api-client";
 
 export type AdminOverview = {
   settings: {
@@ -90,7 +91,7 @@ type UseAdminPanelOptions = {
   open: boolean;
   currentUser: PublicUser | null;
   locale: "en" | "zh";
-  onUnauthorized: (response: Response) => boolean;
+  onUnauthorized: (errorOrResponse: unknown) => boolean;
   onBrandingReload: () => Promise<unknown>;
   onCatalogReload: () => Promise<unknown>;
 };
@@ -124,11 +125,17 @@ export function useAdminPanel({
   }
 
   async function loadAdminOverview() {
-    const response = await fetch("/api/admin/overview", { cache: "no-store" });
-    if (onUnauthorized(response)) return;
-    if (!response.ok) throw new Error("Admin overview could not be loaded.");
+    let body: AdminOverview;
+    try {
+      body = await fetchJson<AdminOverview>("/api/admin/overview", {
+        cache: "no-store",
+        fallbackMessage: "Admin overview could not be loaded."
+      });
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      throw caught;
+    }
 
-    const body = (await response.json()) as AdminOverview;
     setAdminOverview(body);
     setPlatformOpenaiBaseUrl(body.platformProvider?.baseUrls?.openai ?? "");
     setPlatformOpenaiModel(body.platformProvider?.models?.openai ?? "");
@@ -138,17 +145,16 @@ export function useAdminPanel({
     if (!adminOverview) return;
     setAdminMessage("");
     const settings = { ...adminOverview.settings, ...next };
-    const response = await fetch("/api/admin/settings", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(settings)
-    });
-
-    if (onUnauthorized(response)) return;
-
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setAdminMessage(body.error ?? "Admin settings could not be saved.");
+    try {
+      await fetchJson("/api/admin/settings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(settings),
+        fallbackMessage: "Admin settings could not be saved."
+      });
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      setAdminMessage(caught instanceof Error ? caught.message : "Admin settings could not be saved.");
       return;
     }
 
@@ -159,17 +165,16 @@ export function useAdminPanel({
 
   async function createAdminUser() {
     setAdminMessage("");
-    const response = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: newUserEmail, password: newUserPassword, role: "USER" })
-    });
-
-    if (onUnauthorized(response)) return;
-
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setAdminMessage(body.error ?? "User could not be created.");
+    try {
+      await fetchJson("/api/admin/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: newUserEmail, password: newUserPassword, role: "USER" }),
+        fallbackMessage: "User could not be created."
+      });
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      setAdminMessage(caught instanceof Error ? caught.message : "User could not be created.");
       return;
     }
 
@@ -180,14 +185,16 @@ export function useAdminPanel({
   }
 
   async function toggleUserDisabled(user: PublicUser) {
-    const response = await fetch(`/api/admin/users/${user.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ disabled: !user.disabled })
-    });
-    if (onUnauthorized(response)) return;
-    if (!response.ok) {
-      setAdminMessage("User could not be updated.");
+    try {
+      await fetchJson(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ disabled: !user.disabled }),
+        fallbackMessage: "User could not be updated."
+      });
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      setAdminMessage(caught instanceof Error ? caught.message : "User could not be updated.");
       return;
     }
     await loadAdminOverview();
@@ -203,18 +210,15 @@ export function useAdminPanel({
     setAdminMessage("");
 
     try {
-      const response = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-
-      if (onUnauthorized(response)) return;
-
-      if (!response.ok) {
-        throw new Error(body.error ?? "User could not be deleted.");
-      }
+      await fetchJson(`/api/admin/users/${user.id}`, {
+        method: "DELETE",
+        fallbackMessage: "User could not be deleted."
+      });
 
       setAdminMessage("User deleted.");
       await loadAdminOverview();
     } catch (caught) {
+      if (onUnauthorized(caught)) return;
       setAdminMessage(caught instanceof Error ? caught.message : "User could not be deleted.");
     } finally {
       setDeletingUserId("");
@@ -223,26 +227,26 @@ export function useAdminPanel({
 
   async function savePlatformProvider() {
     setAdminMessage("");
-    const response = await fetch("/api/admin/provider", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        keys: {
-          openai: platformOpenaiKey
-        },
-        baseUrls: {
-          openai: platformOpenaiBaseUrl
-        },
-        models: {
-          openai: platformOpenaiModel
-        }
-      })
-    });
-
-    if (onUnauthorized(response)) return;
-
-    if (!response.ok) {
-      setAdminMessage("Platform provider settings could not be saved.");
+    try {
+      await fetchJson("/api/admin/provider", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          keys: {
+            openai: platformOpenaiKey
+          },
+          baseUrls: {
+            openai: platformOpenaiBaseUrl
+          },
+          models: {
+            openai: platformOpenaiModel
+          }
+        }),
+        fallbackMessage: "Platform provider settings could not be saved."
+      });
+    } catch (caught) {
+      if (onUnauthorized(caught)) return;
+      setAdminMessage(caught instanceof Error ? caught.message : "Platform provider settings could not be saved.");
       return;
     }
 

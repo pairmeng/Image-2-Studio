@@ -221,6 +221,7 @@ export function ComposerPanel({
       <div className="mode-toggle full-width input-mode-toggle" aria-label={locale === "zh" ? "输入方式" : "Input mode"}>
         <button
           className={generationInputMode === "single" ? "is-active" : ""}
+          data-testid="input-mode-single"
           type="button"
           disabled={loading}
           onClick={() => onUpdateGenerationInputMode("single")}
@@ -229,6 +230,7 @@ export function ComposerPanel({
         </button>
         <button
           className={generationInputMode === "batch" ? "is-active" : ""}
+          data-testid="input-mode-batch"
           type="button"
           disabled={loading}
           onClick={() => onUpdateGenerationInputMode("batch")}
@@ -518,6 +520,7 @@ export function ComposerPanel({
 
       <button
         className={`text-button composer-drawer-toggle ${paramsOpen ? "is-open" : ""}`}
+        data-testid="composer-drawer-toggle"
         type="button"
         aria-expanded={paramsOpen}
         onClick={() => setParamsOpen((current) => !current)}
