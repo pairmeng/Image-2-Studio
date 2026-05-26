@@ -1,5 +1,6 @@
 .next/
 .test-dist/
+test-results/
 node_modules/
 .pnpm-store/
 .codex/
