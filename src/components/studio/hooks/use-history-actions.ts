@@ -225,6 +225,37 @@ export function useHistoryActions({
     URL.revokeObjectURL(url);
   }
 
+  async function archiveSelectedImages() {
+    const uniqueIds = getUniqueHistoryIds(selectedHistoryIds);
+    if (uniqueIds.length === 0) return;
+
+    setError("");
+    const fallbackMessage = locale === "zh" ? "归档图片失败。" : "Images could not be archived.";
+
+    try {
+      await fetchJson("/api/images/history/archive", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids: uniqueIds, archived: true }),
+        fallbackMessage
+      });
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
+      return;
+    }
+
+    const archivedSet = new Set(uniqueIds);
+    setRecords((current) => current.filter((record) => !archivedSet.has(record.id)));
+    setSelectedHistoryIds((current) => removeHistoryIds(current, uniqueIds));
+    setFavoriteRecordIds((current) => removeHistoryIds(current, uniqueIds));
+    setSourceImageIds((current) => removeHistoryIds(current, uniqueIds));
+    setSelectedRecordId((current) => archivedSet.has(current) ? "" : current);
+    if (lightboxRecordId && archivedSet.has(lightboxRecordId)) {
+      closeLightbox();
+    }
+  }
+
   async function clearHistory() {
     setTopbarMenuOpen(false);
     if (!window.confirm(t("clearHistoryConfirm"))) return;
@@ -262,6 +293,7 @@ export function useHistoryActions({
     deleteHistoryImages,
     createProject,
     assignSelectedImages,
+    archiveSelectedImages,
     exportSelectedImagesZip,
     clearHistory
   };

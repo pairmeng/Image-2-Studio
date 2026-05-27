@@ -74,10 +74,10 @@ $env:NEXT_STANDALONE="true"; pnpm.cmd run build
 - `latest` 由推送 `v*` tag 的正式发布流程自动更新。
 
 ```text
-ghcr.io/pairmeng/image-2-studio:dev-latest
-ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
-ghcr.io/pairmeng/image-2-studio:<version-tag>
-ghcr.io/pairmeng/image-2-studio:latest
+ghcr.io/paimonria/image-2-studio:dev-latest
+ghcr.io/paimonria/image-2-studio:dev-<short-sha>
+ghcr.io/paimonria/image-2-studio:<version-tag>
+ghcr.io/paimonria/image-2-studio:latest
 ```
 
 ### 1. 获取部署文件
@@ -85,7 +85,7 @@ ghcr.io/pairmeng/image-2-studio:latest
 克隆仓库只是为了拿到 Compose 文件和 `.env.example`，服务器不会构建源码。
 
 ```bash
-git clone https://github.com/pairmeng/Image-2-Studio.git
+git clone https://github.com/paimonria/Image-2-Studio.git
 cd Image-2-Studio
 ```
 
@@ -99,7 +99,7 @@ nano .env
 使用默认内置 PostgreSQL 和 Redis 栈时至少修改：
 
 ```env
-IMAGE_NAME=ghcr.io/pairmeng/image-2-studio
+IMAGE_NAME=ghcr.io/paimonria/image-2-studio
 IMAGE_TAG=latest
 APP_PORT=3000
 POSTGRES_PASSWORD=replace-with-a-strong-postgres-password
@@ -220,8 +220,8 @@ pnpm.cmd run publish:dev
 这个命令会检查 `gh auth status`、要求工作区干净，并触发 `docker-image.yml` 的 `channel=dev`。远端 workflow 会推送：
 
 ```text
-ghcr.io/pairmeng/image-2-studio:dev-latest
-ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
+ghcr.io/paimonria/image-2-studio:dev-latest
+ghcr.io/paimonria/image-2-studio:dev-<short-sha>
 ```
 
 它不会更新生产 `latest`。
@@ -249,8 +249,8 @@ git push origin v1.2.23
 tag push workflow 会推送：
 
 ```text
-ghcr.io/pairmeng/image-2-studio:v1.2.23
-ghcr.io/pairmeng/image-2-studio:latest
+ghcr.io/paimonria/image-2-studio:v1.2.23
+ghcr.io/paimonria/image-2-studio:latest
 ```
 
 Actions 成功后，再到服务器更新。
@@ -302,6 +302,17 @@ curl http://127.0.0.1:3000/api/health
 ```
 
 健康检查应显示 `backend=redis`、`queue.ok=true`，并且提交新的后台生图任务后 BullMQ 的 `waiting` 或 `active` 有变化。
+
+## 生产安全清单
+
+- 应用前面使用 HTTPS，并在生产环境保持 `AUTH_COOKIE_SECURE=true`。
+- 设置至少 32 位随机字符的唯一 `APP_SECRET`，不要使用示例值。
+- 首次启动前替换默认的 `POSTGRES_PASSWORD` 和 `INITIAL_ADMIN_PASSWORD`。
+- 外部 Redis 优先使用 `rediss://`，日志和工单里只共享脱敏后的 Redis 目标。
+- 反向代理上传限制要和应用的单图 10MB 限制保持一致。
+- 数据库和 `storage/` 备份应加密保存，定期轮换平台 API key，并减少管理员账号数量。
+- 部署自动化使用最小权限的 GHCR token。
+- 发布前检查 CI 产物里的依赖审计、Trivy 扫描和 SBOM 报告。
 
 ### 6. 回滚
 

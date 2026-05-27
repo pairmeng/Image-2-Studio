@@ -10,7 +10,7 @@ describe("deployment configuration guardrails", () => {
   it("keeps production compose pull-based for web and worker containers", () => {
     const compose = read("docker-compose.yml");
 
-    assert.match(compose, /image:\s+\$\{IMAGE_NAME:-ghcr\.io\/pairmeng\/image-2-studio\}:\$\{IMAGE_TAG:-latest\}/);
+    assert.match(compose, /image:\s+\$\{IMAGE_NAME:-ghcr\.io\/paimonria\/image-2-studio\}:\$\{IMAGE_TAG:-latest\}/);
     assert.equal((compose.match(/pull_policy:\s+always/g) ?? []).length, 2);
     assert.match(compose, /IMAGE_PROCESS_ROLE:\s+web/);
     assert.match(compose, /IMAGE_PROCESS_ROLE:\s+worker/);
@@ -22,6 +22,7 @@ describe("deployment configuration guardrails", () => {
 
     assert.match(dockerfile, /ARG APP_VERSION=dev/);
     assert.match(dockerfile, /ENV APP_VERSION=\$\{APP_VERSION\}/);
+    assert.match(workflow, /IMAGE_NAME:\s+ghcr\.io\/\$\{\{ github\.repository_owner \}\}\/image-2-studio/);
     assert.match(workflow, /echo "version=\$\{version\}" >> "\$\{GITHUB_OUTPUT\}"/);
     assert.match(workflow, /APP_VERSION=\$\{\{ steps\.meta\.outputs\.version \}\}/);
   });

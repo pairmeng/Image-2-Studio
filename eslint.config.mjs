@@ -18,6 +18,7 @@ export default [
       "dist/**",
       "dist-worker/**",
       "node_modules/**",
+      "test-results/**",
       "storage/**",
       "public/generated/**",
       "public/uploads/**",

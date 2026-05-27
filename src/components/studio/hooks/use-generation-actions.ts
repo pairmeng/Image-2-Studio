@@ -32,6 +32,8 @@ import {
   requestCreateImageJob,
   requestImageBatch,
   requestImageJob,
+  requestPauseImageBatch,
+  requestResumeImageBatch,
   requestRetryImageBatchItems,
   requestRetryImageJob,
   requestStartImageBatch,
@@ -965,6 +967,50 @@ export function useGenerationActions({
     }
   }
 
+  async function pauseActiveBatch() {
+    if (!activeBatchId || loading) return;
+
+    setError("");
+    setLoading(true);
+    const fallbackMessage = locale === "zh" ? "暂停批次失败。" : "Batch could not be paused.";
+
+    try {
+      const batch = await requestPauseImageBatch(activeBatchId, fallbackMessage);
+      const active = isBatchDetailActive(batch);
+      setBatchItems(batch.items.map(batchItemToGenerationItem));
+      setBatchRunning(active);
+      updateBatchTiming(batch, active);
+      await loadJobs();
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resumeActiveBatch() {
+    if (!activeBatchId || loading) return;
+
+    setError("");
+    setLoading(true);
+    const fallbackMessage = locale === "zh" ? "恢复批次失败。" : "Batch could not be resumed.";
+
+    try {
+      const batch = await requestResumeImageBatch(activeBatchId, fallbackMessage);
+      setBatchItems(batch.items.map(batchItemToGenerationItem));
+      setBatchRunning(isBatchDetailActive(batch));
+      updateBatchTiming(batch, true);
+      await loadJobs("active");
+      void pollBatchUntilFinished(activeBatchId);
+    } catch (caught) {
+      if (handleUnauthorized(caught)) return;
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function trackImageJob(job: ImageJobResponse) {
     setError("");
     const decision = getTrackImageJobDecision(job, {
@@ -1090,6 +1136,8 @@ export function useGenerationActions({
     submit,
     retryBatchItem,
     retryFailedBatchItems,
+    pauseActiveBatch,
+    resumeActiveBatch,
     trackImageJob,
     retryStandaloneJob,
     copyImage,

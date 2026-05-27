@@ -1,4 +1,5 @@
 import type { ProviderId } from "../models";
+import { getPublicImageQueueSettingsFromRecord, type PublicImageQueueSettings } from "./image-queue-settings";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { prisma } from "./db";
 
@@ -34,7 +35,17 @@ type AppSettings = {
   siteTitle?: string | null;
   faviconUrl?: string | null;
   logoUrl?: string | null;
+  imageQueueMode?: string | null;
+  imageJobConcurrency?: number | null;
+  imageJobUserConcurrency?: number | null;
+  imageQueueRedisUrlEncrypted?: string | null;
+  imageQueuePrefix?: string | null;
+  imageWorkerConcurrency?: number | null;
+  imageQueueAttempts?: number | null;
+  imageQueueBackoffMs?: number | null;
 };
+
+export type PublicAppSettings = Omit<AppSettings, "imageQueueRedisUrlEncrypted"> & PublicImageQueueSettings;
 
 export function sanitizeSiteTitle(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -101,11 +112,31 @@ const DEFAULT_APP_SETTINGS: AppSettings = {
   dailyPlatformQuota: 20,
   siteTitle: null,
   faviconUrl: null,
-  logoUrl: null
+  logoUrl: null,
+  imageQueueMode: null,
+  imageJobConcurrency: null,
+  imageJobUserConcurrency: null,
+  imageQueueRedisUrlEncrypted: null,
+  imageQueuePrefix: null,
+  imageWorkerConcurrency: null,
+  imageQueueAttempts: null,
+  imageQueueBackoffMs: null
 };
 
 export async function readAppSettings(): Promise<AppSettings> {
   return await prisma.appSetting.findUnique({ where: { id: "settings" } }) ?? DEFAULT_APP_SETTINGS;
+}
+
+export function toPublicAppSettings(settings: AppSettings): PublicAppSettings {
+  const { imageQueueRedisUrlEncrypted: _redisUrl, ...safeSettings } = settings;
+  return {
+    ...safeSettings,
+    ...getPublicImageQueueSettingsFromRecord(settings)
+  };
+}
+
+export async function readPublicAppSettings(): Promise<PublicAppSettings> {
+  return toPublicAppSettings(await readAppSettings());
 }
 
 export async function getAppSettings() {

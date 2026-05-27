@@ -4,6 +4,7 @@ import { compare, hash } from "bcryptjs";
 import { prisma } from "./db";
 import { sha256 } from "./crypto";
 import { AppError } from "./errors";
+import { assertProductionConfiguration } from "./production-guardrails";
 import type { PublicUser } from "../types";
 
 export const SESSION_COOKIE = "image2_session";
@@ -163,6 +164,7 @@ export async function requireAdmin() {
 }
 
 export async function ensureInitialAdmin() {
+  assertProductionConfiguration();
   const email = normalizeEmail(process.env.INITIAL_ADMIN_EMAIL ?? "");
   const password = process.env.INITIAL_ADMIN_PASSWORD ?? "";
 

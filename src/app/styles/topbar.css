@@ -479,7 +479,7 @@
 
 .topbar-main {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(360px, 760px) auto;
+  grid-template-columns: minmax(250px, 360px) minmax(360px, 760px) auto;
   width: min(1760px, calc(100vw - 64px));
   min-width: 0;
   align-items: center;
@@ -493,6 +493,7 @@
 
 .topbar-main .brand {
   min-width: 0;
+  gap: 12px;
 }
 
 .topbar-main .brand > div {
@@ -504,6 +505,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.topbar-main .brand-title {
+  color: #121a2b;
+  font-size: 24px;
+  font-weight: 920;
+  line-height: 1;
+}
+
+.topbar-main .brand-mark {
+  width: 40px;
+  height: 40px;
 }
 
 .topbar-main .toolbar {

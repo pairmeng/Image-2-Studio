@@ -55,6 +55,8 @@ type ResultPanelProps = {
   t: (key: string) => string;
   onLoadBatchDetail: (batchId: string) => void;
   onRetryFailedBatchItems: () => void;
+  onPauseBatch: () => void;
+  onResumeBatch: () => void;
   onChangeImageJobState: (jobId: string, action: "pause" | "resume" | "kill") => void;
   onRetryBatchItem: (item: BatchGenerationItem) => void;
   onOpenLightbox: (recordId: string) => void;
@@ -85,6 +87,8 @@ export function ResultPanel({
   t,
   onLoadBatchDetail,
   onRetryFailedBatchItems,
+  onPauseBatch,
+  onResumeBatch,
   onChangeImageJobState,
   onRetryBatchItem,
   onOpenLightbox,
@@ -142,6 +146,18 @@ export function ResultPanel({
                 <button className="text-button tiny" type="button" disabled={loading} onClick={onRetryFailedBatchItems}>
                   <RefreshCw size={14} />
                   {t("batchRetryAllFailed")}
+                </button>
+              )}
+              {batchRunning && (
+                <button className="text-button tiny" type="button" disabled={loading} onClick={onPauseBatch}>
+                  <Pause size={14} />
+                  {t("batchPause")}
+                </button>
+              )}
+              {batchPausedOnly && (
+                <button className="text-button tiny" type="button" disabled={loading} onClick={onResumeBatch}>
+                  <Play size={14} />
+                  {t("batchResume")}
                 </button>
               )}
               <span className={`status-pill ${batchRunning ? "is-ready" : ""}`}>

@@ -11,6 +11,7 @@ function toProjectResponse(project: {
   id: string;
   name: string;
   color: string | null;
+  archivedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   _count?: { images: number };
@@ -19,6 +20,7 @@ function toProjectResponse(project: {
     id: project.id,
     name: project.name,
     color: project.color ?? undefined,
+    archivedAt: project.archivedAt?.toISOString(),
     imageCount: project._count?.images ?? 0,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString()
@@ -63,7 +65,10 @@ function normalizeTags(value: unknown) {
 
 export async function readProjectsForUser(userId: string) {
   const projects = await prisma.imageProject.findMany({
-    where: { userId },
+    where: {
+      userId,
+      archivedAt: null
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       _count: {
@@ -95,6 +100,23 @@ export async function createProjectForUser(userId: string, input: { name?: unkno
   });
 
   if (existing) {
+    if (existing.archivedAt) {
+      const restored = await prisma.imageProject.update({
+        where: { id: existing.id },
+        data: {
+          color,
+          archivedAt: null
+        },
+        include: {
+          _count: {
+            select: { images: true }
+          }
+        }
+      });
+
+      return toProjectResponse(restored);
+    }
+
     return toProjectResponse(existing);
   }
 
@@ -104,6 +126,59 @@ export async function createProjectForUser(userId: string, input: { name?: unkno
       name,
       color
     },
+    include: {
+      _count: {
+        select: { images: true }
+      }
+    }
+  });
+
+  return toProjectResponse(project);
+}
+
+export async function updateProjectForUser(userId: string, input: {
+  id?: unknown;
+  name?: unknown;
+  color?: unknown;
+  archived?: unknown;
+}) {
+  const id = typeof input.id === "string" ? input.id.trim() : "";
+  if (!id) {
+    throw new AppError("Project not found.", 404);
+  }
+
+  const existing = await prisma.imageProject.findFirst({
+    where: {
+      id,
+      userId
+    }
+  });
+
+  if (!existing) {
+    throw new AppError("Project not found.", 404);
+  }
+
+  const data: {
+    name?: string;
+    color?: string | null;
+    archivedAt?: Date | null;
+  } = {};
+
+  if (input.name !== undefined) {
+    data.name = normalizeProjectName(input.name);
+  }
+
+  if (input.color !== undefined) {
+    data.color = typeof input.color === "string" && input.color.trim() ? input.color.trim().slice(0, 32) : null;
+  }
+
+  if (typeof input.archived === "boolean") {
+    data.archivedAt = input.archived ? (existing.archivedAt ?? new Date()) : null;
+  }
+
+  const project = await prisma.imageProject.update({
+    where: { id },
+    data,
     include: {
       _count: {
         select: { images: true }
@@ -147,7 +222,8 @@ export async function assignImagesToProject(userId: string, input: {
   const updated = await prisma.imageRecord.updateMany({
     where: {
       userId,
-      id: { in: recordIds }
+      id: { in: recordIds },
+      deletedAt: null
     },
     data
   });

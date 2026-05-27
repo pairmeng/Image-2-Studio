@@ -1,6 +1,11 @@
 import { Queue } from "bullmq";
 import type { JobsOptions, QueueOptions } from "bullmq";
 import IORedis from "ioredis";
+import {
+  getCachedImageQueueSettings,
+  refreshImageQueueSettings,
+  type EffectiveImageQueueSettings
+} from "./image-queue-settings";
 
 export const IMAGE_QUEUE_NAME = "image-jobs";
 
@@ -10,24 +15,28 @@ type ImageQueuePayload = {
 
 let imageQueue: Queue<ImageQueuePayload> | null = null;
 let imageQueueConnection: IORedis | null = null;
+let imageQueueRuntimeVersion = "";
 const REDIS_ERROR_LOG_THROTTLE_MS = 30 * 1000;
 const redisErrorLogTimestamps = new Map<string, number>();
 
 function getRedisUrl() {
-  return process.env.REDIS_URL?.trim() || "";
+  return getCachedImageQueueSettings().redisUrl;
+}
+
+function getQueueSettings() {
+  return getCachedImageQueueSettings();
+}
+
+export async function refreshImageQueueRuntimeSettings(options: { force?: boolean } = {}) {
+  const settings = await refreshImageQueueSettings(options);
+  if (imageQueueRuntimeVersion && imageQueueRuntimeVersion !== settings.queueRuntimeVersion) {
+    await closeImageQueue();
+  }
+  return settings;
 }
 
 export function getImageQueueRedisTarget() {
-  const redisUrl = getRedisUrl();
-  if (!redisUrl) return "disabled";
-
-  try {
-    const url = new URL(redisUrl);
-    const db = url.pathname && url.pathname !== "/" ? url.pathname : "";
-    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ""}${db}`;
-  } catch {
-    return "invalid REDIS_URL";
-  }
+  return getQueueSettings().redisTarget;
 }
 
 function getImageQueueRedisOptions() {
@@ -78,35 +87,35 @@ function attachRedisErrorHandler(
 }
 
 export function isImageQueueEnabled() {
-  return Boolean(getRedisUrl());
+  const settings = getQueueSettings();
+  return settings.mode === "redis" && settings.redisConfigured;
 }
 
 export function getImageQueuePrefix() {
-  return process.env.IMAGE_QUEUE_PREFIX?.trim() || "image2";
+  return getQueueSettings().imageQueuePrefix;
 }
 
 export function getImageQueueAttempts() {
-  const parsed = Number.parseInt(process.env.IMAGE_QUEUE_ATTEMPTS ?? "", 10);
-  if (!Number.isFinite(parsed)) return 3;
-  return Math.min(Math.max(parsed, 1), 20);
+  return getQueueSettings().imageQueueAttempts;
 }
 
 export function getImageQueueBackoffMs() {
-  const parsed = Number.parseInt(process.env.IMAGE_QUEUE_BACKOFF_MS ?? "", 10);
-  if (!Number.isFinite(parsed)) return 5000;
-  return Math.min(Math.max(parsed, 0), 10 * 60 * 1000);
+  return getQueueSettings().imageQueueBackoffMs;
 }
 
 export function getImageWorkerConcurrency() {
-  const parsed = Number.parseInt(process.env.IMAGE_WORKER_CONCURRENCY ?? "", 10);
-  if (!Number.isFinite(parsed)) return 8;
-  return Math.min(Math.max(parsed, 1), 64);
+  return getQueueSettings().imageWorkerConcurrency;
 }
 
 export function getImageQueueConnection() {
-  const redisUrl = getRedisUrl();
+  const settings = getQueueSettings();
+  const redisUrl = settings.redisUrl;
   if (!redisUrl) {
     throw new Error("REDIS_URL must be set to use the image job queue.");
+  }
+
+  if (imageQueueRuntimeVersion && imageQueueRuntimeVersion !== settings.queueRuntimeVersion) {
+    void closeImageQueue();
   }
 
   if (!imageQueueConnection) {
@@ -120,7 +129,7 @@ export function getImageQueueConnection() {
 }
 
 export function getImageWorkerConnection() {
-  const redisUrl = getRedisUrl();
+  const redisUrl = getQueueSettings().redisUrl;
   if (!redisUrl) {
     throw new Error("REDIS_URL must be set to use the image worker.");
   }
@@ -157,8 +166,14 @@ export function getImageQueueJobOptions(): JobsOptions {
 }
 
 export function getImageQueue() {
+  const settings = getQueueSettings();
+  if (imageQueue && imageQueueRuntimeVersion && imageQueueRuntimeVersion !== settings.queueRuntimeVersion) {
+    void closeImageQueue();
+  }
+
   if (!imageQueue) {
     imageQueue = new Queue<ImageQueuePayload>(IMAGE_QUEUE_NAME, getImageQueueOptions());
+    imageQueueRuntimeVersion = settings.queueRuntimeVersion;
     imageQueue.on("error", (error: Error) => {
       logRedisConnectionError("queue", error);
     });
@@ -167,7 +182,25 @@ export function getImageQueue() {
   return imageQueue;
 }
 
+export async function closeImageQueue() {
+  const queue = imageQueue;
+  const connection = imageQueueConnection;
+  imageQueue = null;
+  imageQueueConnection = null;
+  imageQueueRuntimeVersion = "";
+
+  await Promise.allSettled([
+    queue?.close(),
+    connection?.quit()
+  ]);
+}
+
+export function getImageQueueRuntimeSettings(): EffectiveImageQueueSettings {
+  return getQueueSettings();
+}
+
 export async function checkImageQueueConnection() {
+  await refreshImageQueueRuntimeSettings();
   if (!isImageQueueEnabled()) {
     return {
       enabled: false,
@@ -218,6 +251,7 @@ export async function assertImageQueueConnectionReady() {
 }
 
 export async function getImageQueueJobCounts() {
+  await refreshImageQueueRuntimeSettings();
   if (!isImageQueueEnabled()) {
     return {
       waiting: 0,
@@ -239,6 +273,7 @@ export async function getImageQueueJobCounts() {
 }
 
 export async function removeQueuedImageJob(jobId: string) {
+  await refreshImageQueueRuntimeSettings();
   if (!isImageQueueEnabled()) return false;
 
   const job = await getImageQueue().getJob(jobId);
@@ -249,6 +284,7 @@ export async function removeQueuedImageJob(jobId: string) {
 }
 
 export async function enqueueImageJob(jobId: string) {
+  await refreshImageQueueRuntimeSettings();
   if (!isImageQueueEnabled()) return false;
 
   const queue = getImageQueue();

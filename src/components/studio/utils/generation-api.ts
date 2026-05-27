@@ -116,6 +116,24 @@ export async function requestRetryImageBatchItems(batchId: string, itemIds: stri
   return assertBatchDetail(body, fallbackMessage);
 }
 
+export async function requestPauseImageBatch(batchId: string, fallbackMessage: string) {
+  const body = await fetchJson<Partial<ImageBatchDetailResponse>>(`/api/images/batches/${batchId}/pause`, {
+    method: "POST",
+    fallbackMessage
+  });
+
+  return assertBatchDetail(body, fallbackMessage);
+}
+
+export async function requestResumeImageBatch(batchId: string, fallbackMessage: string) {
+  const body = await fetchJson<Partial<ImageBatchDetailResponse>>(`/api/images/batches/${batchId}/resume`, {
+    method: "POST",
+    fallbackMessage
+  });
+
+  return assertBatchDetail(body, fallbackMessage);
+}
+
 export async function requestRetryImageJob(jobId: string, fallbackMessage: string) {
   const body = await fetchJson<Partial<CreateImageJobResponse>>(`/api/images/jobs/${jobId}/retry`, {
     method: "POST",

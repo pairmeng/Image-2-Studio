@@ -1,15 +1,14 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import type { ImageRecord as DbImageRecord } from "@prisma/client";
 import type { ImageMode, ProviderId } from "../models";
 import type { HistoryResponse, ImageRecord, ImageRecordProvider } from "../types";
 import { prisma } from "./db";
 import { AppError } from "./errors";
-import { STORAGE_GENERATED_DIR } from "./paths";
 
 const DEFAULT_HISTORY_LIMIT = 30;
 const MAX_HISTORY_LIMIT = 60;
 const MAX_DELETE_IDS = 100;
+const MAX_TAGS = 12;
+const MAX_TAG_LENGTH = 32;
 
 function encodeHistoryCursor(record: Pick<DbImageRecord, "createdAt" | "id">) {
   return Buffer.from(JSON.stringify({
@@ -108,7 +107,11 @@ export function toImageRecord(record: DbImageRecord): ImageRecord {
 
 export async function readHistory(userId: string): Promise<ImageRecord[]> {
   const records = await prisma.imageRecord.findMany({
-    where: { userId },
+    where: {
+      userId,
+      deletedAt: null,
+      archivedAt: null
+    },
     orderBy: [
       { createdAt: "desc" },
       { id: "desc" }
@@ -133,6 +136,8 @@ export async function readHistoryPage(userId: string, input: {
   const records = await prisma.imageRecord.findMany({
     where: {
       userId,
+      deletedAt: null,
+      archivedAt: null,
       ...(batchId ? { batchId } : {}),
       ...(projectId ? { projectId } : {}),
       ...(tag ? { tags: { contains: `"${tag}"` } } : {}),
@@ -219,9 +224,15 @@ export async function appendHistory(input: {
 }
 
 export async function clearHistory(userId: string) {
-  const records = await prisma.imageRecord.findMany({ where: { userId } });
-  await prisma.imageRecord.deleteMany({ where: { userId } });
-  await cleanupGeneratedHistoryFiles(userId, records);
+  await prisma.imageRecord.updateMany({
+    where: {
+      userId,
+      deletedAt: null
+    },
+    data: {
+      deletedAt: new Date()
+    }
+  });
 }
 
 export async function findRecordsByIds(userId: string, ids: string[]) {
@@ -230,7 +241,8 @@ export async function findRecordsByIds(userId: string, ids: string[]) {
   return prisma.imageRecord.findMany({
     where: {
       userId,
-      id: { in: ids }
+      id: { in: ids },
+      deletedAt: null
     }
   });
 }
@@ -255,47 +267,13 @@ function normalizeDeleteIds(ids: unknown) {
   return normalized;
 }
 
-function isInsideDirectory(baseDir: string, filePath: string) {
-  const relative = path.relative(baseDir, filePath);
-  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-async function cleanupGeneratedHistoryFiles(userId: string, records: Array<Pick<DbImageRecord, "filePath" | "thumbnailPath">>) {
-  const userGeneratedDir = path.resolve(STORAGE_GENERATED_DIR, userId);
-  const filePaths = Array.from(new Set(records
-    .flatMap((record) => [record.filePath, record.thumbnailPath])
-    .filter((filePath): filePath is string => Boolean(filePath))));
-  if (filePaths.length === 0) return;
-
-  await prisma.storedImage.deleteMany({
-    where: {
-      userId,
-      kind: "generated",
-      filePath: { in: filePaths }
-    }
-  });
-
-  await Promise.all(filePaths.map(async (filePath) => {
-    const resolved = path.resolve(filePath);
-    if (!isInsideDirectory(userGeneratedDir, resolved)) return;
-
-    try {
-      await fs.rm(resolved, { force: true });
-    } catch (error) {
-      console.warn("[images/history] failed to remove generated file", {
-        filePath: resolved,
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }));
-}
-
 export async function deleteHistoryRecords(userId: string, ids: unknown) {
   const normalizedIds = normalizeDeleteIds(ids);
   const records = await prisma.imageRecord.findMany({
     where: {
       userId,
-      id: { in: normalizedIds }
+      id: { in: normalizedIds },
+      deletedAt: null
     }
   });
 
@@ -303,13 +281,73 @@ export async function deleteHistoryRecords(userId: string, ids: unknown) {
     return [];
   }
 
-  await prisma.imageRecord.deleteMany({
+  await prisma.imageRecord.updateMany({
     where: {
       userId,
       id: { in: records.map((record) => record.id) }
+    },
+    data: {
+      deletedAt: new Date()
     }
   });
-  await cleanupGeneratedHistoryFiles(userId, records);
 
   return records.map((record) => record.id);
+}
+
+function normalizeHistoryTags(value: unknown) {
+  if (!Array.isArray(value)) {
+    throw new AppError("Tags must be an array.");
+  }
+
+  return Array.from(new Set(value
+    .map((item) => typeof item === "string" ? item.trim() : "")
+    .filter(Boolean)
+    .map((item) => item.slice(0, MAX_TAG_LENGTH))))
+    .slice(0, MAX_TAGS);
+}
+
+export async function updateHistoryTags(userId: string, input: {
+  ids?: unknown;
+  tags?: unknown;
+}) {
+  const ids = normalizeDeleteIds(input.ids);
+  const tags = normalizeHistoryTags(input.tags);
+  const updated = await prisma.imageRecord.updateMany({
+    where: {
+      userId,
+      id: { in: ids },
+      deletedAt: null
+    },
+    data: {
+      tags: JSON.stringify(tags)
+    }
+  });
+
+  return {
+    ok: true,
+    updatedCount: updated.count
+  };
+}
+
+export async function archiveHistoryRecords(userId: string, input: {
+  ids?: unknown;
+  archived?: unknown;
+}) {
+  const ids = normalizeDeleteIds(input.ids);
+  const archived = typeof input.archived === "boolean" ? input.archived : true;
+  const updated = await prisma.imageRecord.updateMany({
+    where: {
+      userId,
+      id: { in: ids },
+      deletedAt: null
+    },
+    data: {
+      archivedAt: archived ? new Date() : null
+    }
+  });
+
+  return {
+    ok: true,
+    updatedCount: updated.count
+  };
 }

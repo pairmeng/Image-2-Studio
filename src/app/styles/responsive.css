@@ -994,7 +994,7 @@
 @media (max-width: 1320px) {
   .topbar-main {
     width: calc(100vw - 32px);
-    grid-template-columns: minmax(190px, 280px) minmax(280px, 1fr) auto;
+    grid-template-columns: minmax(230px, 320px) minmax(280px, 1fr) auto;
     gap: 10px;
   }
 
@@ -1006,7 +1006,7 @@
 @media (max-width: 1040px) {
   .topbar-main {
     width: calc(100vw - 28px);
-    grid-template-columns: minmax(170px, 230px) minmax(240px, 1fr) auto;
+    grid-template-columns: minmax(210px, 280px) minmax(240px, 1fr) auto;
   }
 
   .topbar-account-button {
@@ -1026,6 +1026,10 @@
 @media (max-width: 860px) {
   .topbar-main {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .topbar-main .brand-title {
+    font-size: 22px;
   }
 
   .topbar-main > .topbar-search {
@@ -1051,6 +1055,10 @@
   .topbar-main {
     width: 100%;
     gap: 8px;
+  }
+
+  .topbar-main .brand-title {
+    font-size: 20px;
   }
 
   .topbar-main .toolbar {

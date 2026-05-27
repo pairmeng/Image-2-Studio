@@ -13,6 +13,7 @@ const MAX_BATCH_LIMIT = 50;
 
 type StoredBatch = {
   id: string;
+  projectId?: string | null;
   name: string;
   provider: string;
   model: string;
@@ -25,6 +26,7 @@ type StoredBatch = {
   createdAt: Date;
   updatedAt: Date;
   finishedAt: Date | null;
+  archivedAt?: Date | null;
 };
 
 type StoredBatchItem = {
@@ -95,6 +97,7 @@ function toBatchResponse(batch: StoredBatch, items?: StoredBatchItem[]): ImageBa
 
   return {
     id: batch.id,
+    projectId: batch.projectId ?? undefined,
     name: batch.name,
     provider: batch.provider as ProviderId,
     model: batch.model,
@@ -106,6 +109,7 @@ function toBatchResponse(batch: StoredBatch, items?: StoredBatchItem[]): ImageBa
     promptFormat: batch.promptFormat,
     createdAt: batch.createdAt.toISOString(),
     updatedAt: batch.updatedAt.toISOString(),
+    archivedAt: batch.archivedAt?.toISOString(),
     finishedAt: batch.finishedAt?.toISOString()
   };
 }
@@ -165,6 +169,7 @@ export async function recalculateImageBatch(batchId: string) {
 
 export async function createImageBatchForUser(userId: string, input: {
   name?: unknown;
+  projectId?: unknown;
   provider?: unknown;
   model?: unknown;
   mode?: unknown;
@@ -206,11 +211,27 @@ export async function createImageBatchForUser(userId: string, input: {
     ? input.name.trim().slice(0, 80)
     : `Batch ${new Date().toLocaleString("sv-SE")}`;
   const promptFormat = input.promptFormat === "lines" ? "lines" : "blocks";
+  const projectId = typeof input.projectId === "string" && input.projectId.trim() ? input.projectId.trim() : undefined;
+
+  if (projectId) {
+    const project = await prisma.imageProject.findFirst({
+      where: {
+        id: projectId,
+        userId,
+        archivedAt: null
+      }
+    });
+
+    if (!project) {
+      throw new AppError("Project not found.", 404);
+    }
+  }
 
   const batch = await prisma.$transaction(async (tx) => {
     const created = await tx.imageBatch.create({
       data: {
         userId,
+        projectId,
         name,
         provider,
         model,
@@ -251,7 +272,10 @@ export async function createImageBatchForUser(userId: string, input: {
 
 export async function readImageBatchesForUser(userId: string, limitValue?: string | null) {
   const batches = await prisma.imageBatch.findMany({
-    where: { userId },
+    where: {
+      userId,
+      archivedAt: null
+    },
     orderBy: { createdAt: "desc" },
     take: normalizeLimit(limitValue)
   });
@@ -463,5 +487,25 @@ export async function retryImageBatchItems(userId: string, batchId: string, item
   return {
     batch: await readImageBatchForUser(userId, batchId),
     jobIds
+  };
+}
+
+export async function archiveImageBatchForUser(userId: string, batchId: string, archived = true) {
+  const updated = await prisma.imageBatch.updateMany({
+    where: {
+      id: batchId,
+      userId
+    },
+    data: {
+      archivedAt: archived ? new Date() : null
+    }
+  });
+
+  if (updated.count === 0) {
+    throw new AppError("Batch not found.", 404);
+  }
+
+  return {
+    ok: true
   };
 }

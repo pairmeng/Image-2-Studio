@@ -7,6 +7,7 @@ import {
   Loader2,
   LockKeyhole,
   LogOut,
+  PanelRightOpen,
   RefreshCw,
   Search,
   Settings2,
@@ -24,8 +25,6 @@ type TopbarProps = {
   activeView: "gallery" | "studio";
   brandMark: ReactNode;
   siteTitle: string;
-  providerLabel: string;
-  modelLabel: string;
   catalog: CatalogResponse | null;
   currentUser: PublicUser;
   locale: Locale;
@@ -57,6 +56,7 @@ type TopbarProps = {
   onResetHistoryFilters: () => void;
   onTopbarMenuOpenChange: Dispatch<SetStateAction<boolean>>;
   onAdminOpen: () => void;
+  onLegacyAdminOpen: () => void;
   onChangePasswordOpen: () => void;
   onLocaleChange: Dispatch<SetStateAction<Locale>>;
   onOpenGenerationStudio: () => void;
@@ -71,8 +71,6 @@ export function Topbar({
   activeView,
   brandMark,
   siteTitle,
-  providerLabel,
-  modelLabel,
   catalog,
   currentUser,
   locale,
@@ -104,6 +102,7 @@ export function Topbar({
   onResetHistoryFilters,
   onTopbarMenuOpenChange,
   onAdminOpen,
+  onLegacyAdminOpen,
   onChangePasswordOpen,
   onLocaleChange,
   onOpenGenerationStudio,
@@ -121,9 +120,6 @@ export function Topbar({
             {brandMark}
             <div>
               <p className="brand-title">{siteTitle}</p>
-              <p className="brand-subtitle">
-                {providerLabel} / {modelLabel}
-              </p>
             </div>
           </div>
           {activeView === "gallery" && (
@@ -346,6 +342,20 @@ export function Topbar({
                       >
                         <ShieldCheck size={15} />
                         {t("admin")}
+                      </button>
+                    )}
+                    {currentUser.role === "ADMIN" && (
+                      <button
+                        className="topbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          onTopbarMenuOpenChange(false);
+                          onLegacyAdminOpen();
+                        }}
+                      >
+                        <PanelRightOpen size={15} />
+                        {locale === "zh" ? "旧版管理抽屉" : "Legacy admin drawer"}
                       </button>
                     )}
                     <button

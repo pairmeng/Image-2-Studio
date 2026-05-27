@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { hashPassword, normalizeEmail, requireAdmin, toPublicUser } from "@/lib/server/auth";
+import { writeAdminAuditLog } from "@/lib/server/admin-audit";
 import { prisma } from "@/lib/server/db";
 import { jsonError, handleRouteError, readJsonBody } from "@/lib/server/responses";
+import { getRequestClientIp } from "@/lib/server/security";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const body = await readJsonBody<{
       email?: string;
       password?: string;
@@ -26,6 +28,18 @@ export async function POST(request: Request) {
         passwordHash: await hashPassword(password),
         role: body.role === "ADMIN" ? "ADMIN" : "USER"
       }
+    });
+    await writeAdminAuditLog({
+      adminUserId: admin.id,
+      action: "user.create",
+      targetType: "user",
+      targetId: user.id,
+      metadata: {
+        role: user.role,
+        passwordSet: true
+      },
+      ipAddress: getRequestClientIp(request),
+      userAgent: request.headers.get("user-agent")
     });
 
     return NextResponse.json({ user: toPublicUser(user) });

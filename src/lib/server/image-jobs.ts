@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ImageMode, ProviderId } from "../models";
 import type { CreateImageJobResponse, ImageBatchDetailResponse, ImageJobResponse, ImageJobStatus, ImageJobsResponse } from "../types";
 import { AppError } from "./errors";
+import { classifyImageJobFailure } from "./image-job-failures";
 import { saveUploadedFile } from "./files";
 import { prisma } from "./db";
 import { refundPlatformQuota, reservePlatformQuota } from "./usage";
@@ -10,10 +11,12 @@ import {
   checkImageQueueConnection,
   enqueueImageJob,
   getImageQueueJobCounts,
+  getImageQueueRuntimeSettings,
   getImageWorkerConcurrency,
   isImageQueueEnabled,
   removeQueuedImageJob
 } from "./image-queue";
+import { refreshImageQueueSettings } from "./image-queue-settings";
 import {
   attachJobToBatchItem,
   markBatchItemCreating,
@@ -60,8 +63,6 @@ export { RetryableImageJobError } from "./image-job-runner";
 
 const RUNNING_JOB_TIMEOUT_MS = 30 * 60 * 1000;
 const STALE_JOB_ERROR = "Image generation was interrupted before completion. Please start a new request.";
-const DEFAULT_IMAGE_JOB_CONCURRENCY = 2;
-const MAX_IMAGE_JOB_CONCURRENCY = 8;
 const DEFAULT_IMAGE_JOB_SCHEDULER_INTERVAL_MS = 5000;
 const IMAGE_JOB_STALE_SWEEP_INTERVAL_MS = 30 * 1000;
 const IMAGE_JOB_CLAIM_SCAN_LIMIT = 50;
@@ -111,19 +112,11 @@ let schedulerStarted = false;
 let lastStaleSweepAt = 0;
 
 function getImageJobConcurrency() {
-  const parsed = Number.parseInt(process.env.IMAGE_JOB_CONCURRENCY ?? "", 10);
-  if (!Number.isFinite(parsed)) return DEFAULT_IMAGE_JOB_CONCURRENCY;
-
-  return Math.min(Math.max(parsed, 1), MAX_IMAGE_JOB_CONCURRENCY);
+  return getImageQueueRuntimeSettings().imageJobConcurrency;
 }
 
 function getImageJobUserConcurrency(globalConcurrency = getImageJobConcurrency()) {
-  const parsed = Number.parseInt(process.env.IMAGE_JOB_USER_CONCURRENCY ?? "", 10);
-  const defaultLimit = Math.max(1, Math.ceil(globalConcurrency / 2));
-
-  if (!Number.isFinite(parsed)) return defaultLimit;
-
-  return Math.min(Math.max(parsed, 1), globalConcurrency);
+  return Math.min(getImageQueueRuntimeSettings().imageJobUserConcurrency, globalConcurrency);
 }
 
 function isInlineImageJobWorkerEnabled() {
@@ -225,6 +218,7 @@ function isStaleRunningJob(job: StoredImageJob) {
 
 async function failStaleRunningJob(job: StoredImageJob) {
   const failedAt = new Date();
+  const failure = classifyImageJobFailure(STALE_JOB_ERROR);
   const failed = await imageJobClient().updateMany({
     where: {
       id: job.id,
@@ -233,6 +227,8 @@ async function failStaleRunningJob(job: StoredImageJob) {
     data: {
       status: "failed",
       error: STALE_JOB_ERROR,
+      failureCode: failure.code,
+      failureCategory: failure.category,
       lockedBy: null,
       lockedAt: null,
       heartbeatAt: null,
@@ -498,10 +494,12 @@ function getImageJobSchedulerDeps() {
 }
 
 export async function scheduleImageJob(jobId: string) {
+  await refreshImageQueueSettings();
   return scheduleImageJobWithDeps(jobId, getImageJobSchedulerDeps());
 }
 
 async function ensurePendingImageJobScheduled(jobId: string, context: Parameters<typeof ensurePendingImageJobScheduledWithScheduler>[1]) {
+  await refreshImageQueueSettings();
   return ensurePendingImageJobScheduledWithScheduler(jobId, context, getImageJobSchedulerDeps());
 }
 
@@ -563,6 +561,7 @@ export async function forceKillImageJobForUser(userId: string, jobId: string): P
 }
 
 export async function restorePendingImageJobsToQueue(limit = 100) {
+  await refreshImageQueueSettings();
   return restorePendingImageJobsToQueueWithDeps(limit, getImageJobSchedulerDeps());
 }
 
@@ -597,6 +596,7 @@ async function drainImageJobQueue() {
   drainingImageJobs = true;
 
   try {
+    await refreshImageQueueSettings();
     await sweepStaleRunningJobs();
 
     const concurrency = getImageJobConcurrency();
@@ -688,6 +688,7 @@ export async function runClaimedImageJobById(jobId: string, options: RunImageJob
 }
 
 export async function getImageJobQueueSnapshot(): Promise<ImageJobQueueSnapshot> {
+  await refreshImageQueueSettings();
   return getImageJobQueueSnapshotFromDeps({
     workerId: IMAGE_JOB_WORKER_ID,
     activeCount: activeJobIds.size,
@@ -699,7 +700,8 @@ export async function getImageJobQueueSnapshot(): Promise<ImageJobQueueSnapshot>
     getImageQueueJobCounts,
     getInlineConcurrency: getImageJobConcurrency,
     getInlineUserConcurrency: getImageJobUserConcurrency,
-    getRedisWorkerConcurrency: getImageWorkerConcurrency
+    getRedisWorkerConcurrency: getImageWorkerConcurrency,
+    getQueueRuntimeSettings: getImageQueueRuntimeSettings
   });
 }
 
@@ -741,6 +743,7 @@ export async function listImageJobsForUser(userId: string, input: {
   scope?: string | null;
   limit?: string | null;
 }): Promise<ImageJobsResponse> {
+  await refreshImageQueueSettings();
   ensureInlineImageJobScheduler();
   await sweepStaleRunningJobs();
 

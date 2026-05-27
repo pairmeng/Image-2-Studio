@@ -51,8 +51,8 @@ pnpm.cmd run publish:dev
 The script checks `gh auth status`, requires a clean working tree, and triggers `docker-image.yml` with `channel=dev`. The workflow publishes:
 
 ```text
-ghcr.io/pairmeng/image-2-studio:dev-latest
-ghcr.io/pairmeng/image-2-studio:dev-<short-sha>
+ghcr.io/paimonria/image-2-studio:dev-latest
+ghcr.io/paimonria/image-2-studio:dev-<short-sha>
 ```
 
 To inspect the remote run:
@@ -86,9 +86,20 @@ git push origin v1.2.23
 The tag workflow publishes:
 
 ```text
-ghcr.io/pairmeng/image-2-studio:v1.2.23
-ghcr.io/pairmeng/image-2-studio:latest
+ghcr.io/paimonria/image-2-studio:v1.2.23
+ghcr.io/paimonria/image-2-studio:latest
 ```
+
+## Production Security Checklist
+
+- Use HTTPS in front of the app and keep `AUTH_COOKIE_SECURE=true` in production.
+- Set a unique `APP_SECRET` of at least 32 random characters; never use example values.
+- Replace default `POSTGRES_PASSWORD` and `INITIAL_ADMIN_PASSWORD` before first boot.
+- Prefer `rediss://` for external Redis and only share redacted Redis targets in logs or tickets.
+- Keep reverse proxy upload limits aligned with the app's 10MB per-image limit.
+- Encrypt database and storage backups, rotate platform API keys, and keep admin accounts minimal.
+- Use least-privilege GHCR tokens for deployment automation.
+- Review CI artifacts for dependency audit, Trivy scan, and SBOM reports before release.
 
 ## Project Layout
 

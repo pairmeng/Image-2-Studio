@@ -3,11 +3,14 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/server/auth";
 import { prisma } from "@/lib/server/db";
+import { AppError } from "@/lib/server/errors";
+import { assertStorageFilePath } from "@/lib/server/files";
 import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
 
 const MAX_EXPORT_IMAGES = 60;
+const MAX_EXPORT_BYTES = 300 * 1024 * 1024;
 const CRC_TABLE = new Uint32Array(256).map((_, index) => {
   let value = index;
   for (let bit = 0; bit < 8; bit += 1) {
@@ -148,7 +151,8 @@ export async function POST(request: Request) {
     const records = await prisma.imageRecord.findMany({
       where: {
         userId: user.id,
-        id: { in: ids }
+        id: { in: ids },
+        deletedAt: null
       },
       orderBy: [
         { createdAt: "asc" },
@@ -159,18 +163,25 @@ export async function POST(request: Request) {
     const order = new Map(ids.map((id, index) => [id, index]));
     records.sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
 
-    const files = await Promise.all(records.map(async (record, index) => {
-      const data = await fs.readFile(record.filePath);
+    let totalBytes = 0;
+    const files = [];
+    for (const [index, record] of records.entries()) {
+      const safeFilePath = assertStorageFilePath(record.filePath, ["generated"]);
+      const data = await fs.readFile(safeFilePath);
+      totalBytes += data.length;
+      if (totalBytes > MAX_EXPORT_BYTES) {
+        throw new AppError("Export is too large.", 413);
+      }
       const ext = getExtension(record.mimeType, record.filePath);
       const promptPart = sanitizeFilename(record.prompt).slice(0, 44);
       const name = `${String(index + 1).padStart(2, "0")}-${promptPart || record.id}.${ext}`;
 
-      return {
+      files.push({
         name,
         data,
         date: record.createdAt
-      };
-    }));
+      });
+    }
 
     const zip = createZip(files);
 

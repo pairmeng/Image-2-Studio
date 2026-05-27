@@ -555,6 +555,8 @@ function StudioAppContent() {
     submit,
     retryBatchItem,
     retryFailedBatchItems,
+    pauseActiveBatch,
+    resumeActiveBatch,
     trackImageJob,
     retryStandaloneJob,
     copyImage,
@@ -613,6 +615,7 @@ function StudioAppContent() {
     deleteHistoryImages,
     createProject,
     assignSelectedImages,
+    archiveSelectedImages,
     exportSelectedImagesZip,
     clearHistory
   } = useHistoryActions({
@@ -722,8 +725,6 @@ function StudioAppContent() {
           activeView={activeView}
           brandMark={renderBrandMark()}
           siteTitle={branding.siteTitle}
-          providerLabel={getProviderLabel(catalog, provider)}
-          modelLabel={selectedModel?.label ?? model}
           catalog={catalog}
           currentUser={currentUser}
           locale={locale}
@@ -786,7 +787,10 @@ function StudioAppContent() {
           onHistoryTagFilterChange={setHistoryTagFilter}
           onResetHistoryFilters={resetHistoryFilters}
           onTopbarMenuOpenChange={setTopbarMenuOpen}
-          onAdminOpen={() => setAdminOpen(true)}
+          onAdminOpen={() => {
+            window.location.assign("/admin");
+          }}
+          onLegacyAdminOpen={() => setAdminOpen(true)}
           onChangePasswordOpen={() => setAccountPasswordOpen(true)}
           onLocaleChange={setLocale}
           onOpenGenerationStudio={openGenerationStudio}
@@ -926,6 +930,8 @@ function StudioAppContent() {
               t={t}
               onLoadBatchDetail={(batchId) => void loadBatchDetailAndPoll(batchId, { showInStudio: true, pollActive: true })}
               onRetryFailedBatchItems={() => void retryFailedBatchItems()}
+              onPauseBatch={() => void pauseActiveBatch()}
+              onResumeBatch={() => void resumeActiveBatch()}
               onChangeImageJobState={(jobId, action) => void changeImageJobState(jobId, action)}
               onRetryBatchItem={(item) => void retryBatchItem(item)}
               onOpenLightbox={(recordId) => openLightbox(recordId, allRecordIds)}
@@ -988,6 +994,7 @@ function StudioAppContent() {
             onSelectAllVisibleHistory={selectAllVisibleHistory}
             onCopySelectedImageLinks={() => void copySelectedImageLinks()}
             onDownloadSelectedImages={downloadSelectedImages}
+            onArchiveSelectedImages={() => void archiveSelectedImages()}
             onExportSelectedImagesZip={() => void exportSelectedImagesZip()}
             onDeleteHistoryImages={(ids) => void deleteHistoryImages(ids)}
             onToggleHistorySelection={toggleHistorySelection}

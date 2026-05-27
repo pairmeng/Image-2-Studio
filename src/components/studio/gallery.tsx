@@ -72,6 +72,8 @@ type GalleryLabels = {
   selectVisible: string;
   copyLinks: string;
   download: string;
+  archiveSelected: string;
+  exportZip: string;
   deleteSelected: string;
   deselect: string;
   select: string;
@@ -136,6 +138,7 @@ type GalleryPanelProps = {
   onSelectAllVisibleHistory: () => void;
   onCopySelectedImageLinks: () => void;
   onDownloadSelectedImages: () => void;
+  onArchiveSelectedImages: () => void;
   onExportSelectedImagesZip: () => void;
   onDeleteHistoryImages: (ids: string[]) => void;
   onToggleHistorySelection: (id: string) => void;
@@ -178,6 +181,8 @@ export function getGalleryLabels(locale: GalleryLocale, t: (key: GalleryCopyKey)
     selectVisible: locale === "zh" ? "\u5168\u9009\u53ef\u89c1" : "Select visible",
     copyLinks: locale === "zh" ? "\u590d\u5236\u94fe\u63a5" : "Copy links",
     download: t("download"),
+    archiveSelected: locale === "zh" ? "\u5f52\u6863\u6240\u9009" : "Archive selected",
+    exportZip: locale === "zh" ? "\u5bfc\u51fa ZIP" : "Export ZIP",
     deleteSelected: locale === "zh" ? "\u5220\u9664\u6240\u9009" : "Delete selected",
     deselect: locale === "zh" ? "\u53d6\u6d88\u9009\u62e9" : "Deselect",
     select: locale === "zh" ? "\u9009\u62e9" : "Select",
@@ -243,6 +248,7 @@ export function GalleryPanel({
   onSelectAllVisibleHistory,
   onCopySelectedImageLinks,
   onDownloadSelectedImages,
+  onArchiveSelectedImages,
   onExportSelectedImagesZip,
   onDeleteHistoryImages,
   onToggleHistorySelection,
@@ -432,9 +438,13 @@ export function GalleryPanel({
                     <Download size={14} />
                     {labels.download}
                   </button>
+                  <button className="text-button tiny" type="button" onClick={onArchiveSelectedImages}>
+                    <Archive size={14} />
+                    {labels.archiveSelected}
+                  </button>
                   <button className="text-button tiny" type="button" onClick={onExportSelectedImagesZip}>
                     <Archive size={14} />
-                    ZIP
+                    {labels.exportZip}
                   </button>
                 </div>
               </div>

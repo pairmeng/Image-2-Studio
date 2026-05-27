@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
-import type { StoredFileMeta } from "./files";
+import { assertStorageFilePath, type StoredFileMeta } from "./files";
 
 const PRIVATE_IMAGE_CACHE_CONTROL = "private, max-age=86400, immutable";
 
@@ -32,7 +32,8 @@ function hasFreshModifiedSince(request: Request, mtimeMs: number) {
 }
 
 export async function createImageResponseContext(image: StoredFileMeta) {
-  const fileStats = await stat(image.filePath);
+  const safeFilePath = assertStorageFilePath(image.filePath);
+  const fileStats = await stat(safeFilePath);
   const etag = getImageEtag(image, fileStats.size, fileStats.mtimeMs);
   const headers = {
     "content-type": image.mimeType,
@@ -42,7 +43,7 @@ export async function createImageResponseContext(image: StoredFileMeta) {
     etag
   };
 
-  return { image, headers, fileStats };
+  return { image: { ...image, filePath: safeFilePath }, headers, fileStats };
 }
 
 export function isFreshImageRequest(request: Request, context: Awaited<ReturnType<typeof createImageResponseContext>>) {

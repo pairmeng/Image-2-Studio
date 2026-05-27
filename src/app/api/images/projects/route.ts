@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/server/auth";
-import { createProjectForUser, readProjectsForUser } from "@/lib/server/projects";
+import { createProjectForUser, readProjectsForUser, updateProjectForUser } from "@/lib/server/projects";
 import { handleRouteError, readJsonBody } from "@/lib/server/responses";
 
 export const runtime = "nodejs";
@@ -23,6 +23,23 @@ export async function POST(request: Request) {
     const project = await createProjectForUser(user.id, body);
 
     return NextResponse.json(project, { status: 201 });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const user = await requireUser();
+    const body = await readJsonBody<{
+      id?: unknown;
+      name?: unknown;
+      color?: unknown;
+      archived?: unknown;
+    }>(request);
+    const project = await updateProjectForUser(user.id, body);
+
+    return NextResponse.json(project);
   } catch (error) {
     return handleRouteError(error);
   }

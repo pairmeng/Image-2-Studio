@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { describe, it } from "node:test";
 import {
   createImageResponseContext,
@@ -11,7 +10,7 @@ import {
 
 describe("authenticated image response caching", () => {
   it("uses private cache validators and recognizes fresh requests", async () => {
-    const dir = join(tmpdir(), `image-response-${process.pid}-${Date.now()}`);
+    const dir = join(process.cwd(), "storage", "generated", `image-response-${process.pid}-${Date.now()}`);
     const filePath = join(dir, "sample.png");
     mkdirSync(dir, { recursive: true });
     writeFileSync(filePath, Buffer.from("png"));

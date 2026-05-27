@@ -9,6 +9,7 @@ import {
 import { prisma } from "@/lib/server/db";
 import { parsePasswordChangeInput } from "@/lib/server/password-policy";
 import { handleRouteError, jsonError, readJsonBody } from "@/lib/server/responses";
+import { assertAuthRateLimit } from "@/lib/server/security";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       return jsonError("Authentication required.", 401);
     }
 
+    await assertAuthRateLimit(request, "password", [session.user.id]);
     const validation = parsePasswordChangeInput(await readJsonBody(request));
     if (!validation.ok) {
       return jsonError(validation.error);

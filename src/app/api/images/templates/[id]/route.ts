@@ -11,9 +11,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id } = await context.params;
     const body = await readJsonBody<{
       title?: unknown;
+      description?: unknown;
       category?: unknown;
       mode?: unknown;
       content?: unknown;
+      tags?: unknown;
+      defaults?: unknown;
+      projectId?: unknown;
+      archived?: unknown;
     }>(request);
     const template = await updatePromptTemplateForUser(user.id, id, body);
 

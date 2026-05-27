@@ -124,6 +124,7 @@ export type ImageBatchItemResponse = {
 
 export type ImageBatchResponse = {
   id: string;
+  projectId?: string;
   name: string;
   provider: ProviderId;
   model: string;
@@ -135,6 +136,7 @@ export type ImageBatchResponse = {
   promptFormat: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string;
   finishedAt?: string;
 };
 
@@ -146,6 +148,7 @@ export type ImageProjectResponse = {
   id: string;
   name: string;
   color?: string;
+  archivedAt?: string;
   imageCount: number;
   createdAt: string;
   updatedAt: string;
@@ -153,10 +156,15 @@ export type ImageProjectResponse = {
 
 export type PromptTemplateResponse = {
   id: string;
+  projectId?: string;
   title: string;
+  description?: string;
   category: string;
   mode: "text-to-image" | "image-to-image" | "universal";
   content: string;
+  tags?: string[];
+  defaults?: Record<string, unknown>;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 };

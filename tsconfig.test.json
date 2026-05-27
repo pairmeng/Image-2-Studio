@@ -17,6 +17,8 @@
     "src/lib/batch-start.ts",
     "src/lib/batch-timeout.ts",
     "src/lib/history-records.ts",
+    "src/lib/admin-images.ts",
+    "src/lib/admin-usage.ts",
     "src/lib/image-job-scheduling.ts",
     "src/lib/image-job-runner.ts",
     "src/lib/image-job-state.ts",

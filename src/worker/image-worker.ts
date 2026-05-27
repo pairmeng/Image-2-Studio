@@ -3,18 +3,27 @@ import type { Job } from "bullmq";
 import { prisma } from "../lib/server/db";
 import {
   getImageWorkerConnection,
-  getImageWorkerConcurrency,
-  getImageQueuePrefix,
+  getImageQueueRuntimeSettings,
+  refreshImageQueueRuntimeSettings,
   assertImageQueueConnectionReady,
   IMAGE_QUEUE_NAME,
   isImageQueueEnabled
 } from "../lib/server/image-queue";
+import type { EffectiveImageQueueSettings } from "../lib/server/image-queue-settings";
 import { restorePendingImageJobsToQueue, runClaimedImageJobById } from "../lib/server/image-jobs";
 import { getImageWorkerSchemaWaitConfig, isMissingImageJobTableError } from "../lib/image-worker-startup";
 
 type ImageQueuePayload = {
   jobId?: unknown;
 };
+
+type RunningImageWorker = {
+  worker: Worker<ImageQueuePayload>;
+  connection: ReturnType<typeof getImageWorkerConnection>;
+  settings: EffectiveImageQueueSettings;
+};
+
+const WORKER_CONFIG_POLL_MS = 5000;
 
 function requireRedisQueue() {
   if (!isImageQueueEnabled()) {
@@ -31,9 +40,24 @@ function getJobId(job: Job<ImageQueuePayload>) {
   return jobId.trim();
 }
 
-async function shutdown(worker: Worker<ImageQueuePayload>, signal: string) {
+async function closeRunningWorker(running: RunningImageWorker | null, reason: string) {
+  if (!running) return;
+
+  console.log("[image-worker] closing worker", {
+    reason,
+    queue: IMAGE_QUEUE_NAME,
+    prefix: running.settings.imageQueuePrefix,
+    concurrency: running.settings.imageWorkerConcurrency,
+    configVersion: running.settings.workerRuntimeVersion
+  });
+
+  await running.worker.close();
+  running.connection.disconnect();
+}
+
+async function shutdown(getRunning: () => RunningImageWorker | null, signal: string) {
   console.log(`[image-worker] received ${signal}; closing worker`);
-  await worker.close();
+  await closeRunningWorker(getRunning(), signal);
   await prisma.$disconnect();
   process.exit(0);
 }
@@ -65,15 +89,7 @@ async function restorePendingImageJobsWhenSchemaReady() {
   return 0;
 }
 
-async function main() {
-  requireRedisQueue();
-  const queueHealth = await assertImageQueueConnectionReady();
-  const restoredJobs = await restorePendingImageJobsWhenSchemaReady();
-  console.log("[image-worker] redis queue ready", {
-    target: queueHealth.target,
-    restoredJobs
-  });
-
+async function createRunningWorker(settings: EffectiveImageQueueSettings): Promise<RunningImageWorker> {
   const connection = getImageWorkerConnection();
   const worker = new Worker<ImageQueuePayload>(
     IMAGE_QUEUE_NAME,
@@ -95,8 +111,8 @@ async function main() {
     },
     {
       connection,
-      prefix: getImageQueuePrefix(),
-      concurrency: getImageWorkerConcurrency()
+      prefix: settings.imageQueuePrefix,
+      concurrency: settings.imageWorkerConcurrency
     }
   );
 
@@ -122,11 +138,64 @@ async function main() {
   await worker.waitUntilReady();
   console.log("[image-worker] ready", {
     queue: IMAGE_QUEUE_NAME,
-    concurrency: getImageWorkerConcurrency()
+    prefix: settings.imageQueuePrefix,
+    concurrency: settings.imageWorkerConcurrency,
+    target: settings.redisTarget,
+    configVersion: settings.workerRuntimeVersion
   });
 
-  process.on("SIGINT", () => void shutdown(worker, "SIGINT"));
-  process.on("SIGTERM", () => void shutdown(worker, "SIGTERM"));
+  return {
+    worker,
+    connection,
+    settings
+  };
+}
+
+async function main() {
+  let running: RunningImageWorker | null = null;
+  await refreshImageQueueRuntimeSettings({ force: true });
+  requireRedisQueue();
+  const queueHealth = await assertImageQueueConnectionReady();
+  const restoredJobs = await restorePendingImageJobsWhenSchemaReady();
+  console.log("[image-worker] redis queue ready", {
+    target: queueHealth.target,
+    restoredJobs
+  });
+
+  running = await createRunningWorker(getImageQueueRuntimeSettings());
+
+  const pollTimer = setInterval(() => {
+    void (async () => {
+      const nextSettings = await refreshImageQueueRuntimeSettings({ force: true });
+      if (running && running.settings.workerRuntimeVersion === nextSettings.workerRuntimeVersion) return;
+
+      if (nextSettings.mode !== "redis" || !nextSettings.redisConfigured) {
+        console.error("[image-worker] queue configuration no longer enables Redis; worker is waiting for a valid Redis configuration", {
+          mode: nextSettings.mode,
+          target: nextSettings.redisTarget,
+          configVersion: nextSettings.workerRuntimeVersion
+        });
+        await closeRunningWorker(running, "configuration-disabled");
+        running = null;
+        return;
+      }
+
+      console.log("[image-worker] queue configuration changed; rebuilding worker", {
+        previousVersion: running?.settings.workerRuntimeVersion,
+        nextVersion: nextSettings.workerRuntimeVersion
+      });
+      await closeRunningWorker(running, "configuration-changed");
+      running = await createRunningWorker(nextSettings);
+    })().catch((error) => {
+      console.error("[image-worker] worker configuration poll failed", {
+        cause: error instanceof Error ? error.message : String(error)
+      });
+    });
+  }, WORKER_CONFIG_POLL_MS);
+  (pollTimer as { unref?: () => void }).unref?.();
+
+  process.on("SIGINT", () => void shutdown(() => running, "SIGINT"));
+  process.on("SIGTERM", () => void shutdown(() => running, "SIGTERM"));
 }
 
 void main().catch(async (error) => {

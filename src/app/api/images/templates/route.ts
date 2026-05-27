@@ -21,9 +21,13 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const body = await readJsonBody<{
       title?: unknown;
+      description?: unknown;
       category?: unknown;
       mode?: unknown;
       content?: unknown;
+      tags?: unknown;
+      defaults?: unknown;
+      projectId?: unknown;
     }>(request);
     const template = await createPromptTemplateForUser(user.id, body);
 

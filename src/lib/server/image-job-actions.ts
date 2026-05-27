@@ -1,6 +1,7 @@
 import type { CreateImageJobResponse, ImageJobResponse } from "../types";
 import { isForceKillableImageJobStatus, isPausableImageJobStatus, isResumableImageJobStatus, isRetryableImageJobStatus } from "../image-job-state";
 import { AppError } from "./errors";
+import { classifyImageJobFailure } from "./image-job-failures";
 import type { ImageJobRequest } from "./image-job-input";
 
 const FORCE_KILLED_JOB_ERROR = "Task was force killed from job monitor.";
@@ -207,6 +208,7 @@ export async function forceKillImageJobForUserWithDeps(
   }
 
   const finishedAt = new Date();
+  const failure = classifyImageJobFailure(FORCE_KILLED_JOB_ERROR);
   const updated = await deps.imageJobClient.updateMany({
     where: {
       id: job.id,
@@ -216,6 +218,8 @@ export async function forceKillImageJobForUserWithDeps(
     data: {
       status: "failed",
       error: FORCE_KILLED_JOB_ERROR,
+      failureCode: failure.code,
+      failureCategory: failure.category,
       lockedBy: null,
       lockedAt: null,
       heartbeatAt: null,

@@ -8,6 +8,7 @@ import {
   type PendingImageJobScheduleDeps
 } from "../image-job-scheduling";
 import { AppError } from "./errors";
+import { classifyImageJobFailure } from "./image-job-failures";
 
 type SchedulerImageJob = {
   id: string;
@@ -141,6 +142,7 @@ async function failPendingImageJobForQueueError(jobId: string, error: unknown, d
 
   const finishedAt = new Date();
   const message = getImageQueueErrorMessage(error);
+  const failure = classifyImageJobFailure(message, { cause: error });
   const updated = await deps.imageJobClient.updateMany({
     where: {
       id: job.id,
@@ -149,6 +151,8 @@ async function failPendingImageJobForQueueError(jobId: string, error: unknown, d
     data: {
       status: "failed",
       error: message,
+      failureCode: failure.code,
+      failureCategory: failure.category,
       lockedBy: null,
       lockedAt: null,
       heartbeatAt: null,

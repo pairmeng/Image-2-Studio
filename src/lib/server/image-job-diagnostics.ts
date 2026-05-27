@@ -1,8 +1,12 @@
+import type { EffectiveImageQueueSettings } from "./image-queue-settings";
+import { classifyImageJobFailure, getImageJobFailureLabel } from "./image-job-failures";
+
 type DiagnosticImageJob = {
   provider: string;
   model: string;
   status: string;
   error: string | null;
+  failureCategory?: string | null;
   queueWaitMs: number | null;
   executionMs: number | null;
   upstreamMs: number | null;
@@ -34,10 +38,20 @@ type ImageQueueJobCounts = {
 export type ImageJobQueueSnapshot = {
   workerId: string;
   backend: "redis" | "inline";
+  configSource: EffectiveImageQueueSettings["source"];
+  configVersion: string;
+  queueRuntimeVersion: string;
+  workerRuntimeVersion: string;
   queue: ImageQueueConnectionSnapshot;
   bullmq: ImageQueueJobCounts;
+  redisTarget: string;
+  redisConfigured: boolean;
+  queuePrefix: string;
+  attempts: number;
+  backoffMs: number;
   concurrency: number;
   userConcurrency: number;
+  workerConcurrency: number;
   active: number;
   queued: number;
   pending: number;
@@ -89,6 +103,7 @@ type ImageJobQueueSnapshotDeps = {
   getInlineConcurrency: () => number;
   getInlineUserConcurrency: (globalConcurrency?: number) => number;
   getRedisWorkerConcurrency: () => number;
+  getQueueRuntimeSettings: () => EffectiveImageQueueSettings;
 };
 
 function averageNullable(values: Array<number | null>) {
@@ -113,38 +128,10 @@ function getProviderHealthStatus(total: number, failed: number): "healthy" | "de
   return "healthy";
 }
 
-function getFailureReason(error: string | null | undefined) {
-  const message = (error ?? "").toLowerCase();
-
-  if (/api key|apikey|unauthorized|auth|401|permission|forbidden|invalid key/.test(message)) {
-    return "API key / auth";
-  }
-
-  if (/quota|rate limit|429|billing|credit|insufficient|too many requests/.test(message)) {
-    return "Quota / rate limit";
-  }
-
-  if (/timeout|timed out|time-out|gateway timeout|gateway time-out|504|524|read timeout/.test(message)) {
-    return "Timeout";
-  }
-
-  if (/network|fetch failed|econn|socket|dns|connection|connect/.test(message)) {
-    return "Network";
-  }
-
-  if (/prompt|parameter|param|invalid|unsupported|size|resolution|reference|file|image-to-image/.test(message)) {
-    return "Invalid request";
-  }
-
-  if (/interrupted|stale|worker|scheduler|heartbeat/.test(message)) {
-    return "Interrupted job";
-  }
-
-  if (/provider|upstream|service unavailable|openai|nginx|openresty|502|503|500/.test(message)) {
-    return "Provider error";
-  }
-
-  return "Other";
+function getFailureReason(job: Pick<DiagnosticImageJob, "error" | "failureCategory">) {
+  return job.failureCategory
+    ? getImageJobFailureLabel(job.failureCategory)
+    : classifyImageJobFailure(job.error).label;
 }
 
 function getFailureSample(error: string | null | undefined) {
@@ -168,7 +155,7 @@ function getRecentDiagnostics(recentJobs: DiagnosticImageJob[]) {
     modelMap.set(modelKey, modelJobs);
 
     if (job.status === "failed") {
-      const reason = getFailureReason(job.error);
+      const reason = getFailureReason(job);
       const current = failureMap.get(reason);
       const latestAt = job.updatedAt ?? job.createdAt;
 
@@ -253,7 +240,8 @@ export async function getImageJobQueueSnapshotFromDeps({
   getImageQueueJobCounts,
   getInlineConcurrency,
   getInlineUserConcurrency,
-  getRedisWorkerConcurrency
+  getRedisWorkerConcurrency,
+  getQueueRuntimeSettings
 }: ImageJobQueueSnapshotDeps): Promise<ImageJobQueueSnapshot> {
   ensureInlineImageJobScheduler();
 
@@ -279,6 +267,7 @@ export async function getImageJobQueueSnapshotFromDeps({
     })
   ]);
 
+  const settings = getQueueRuntimeSettings();
   const concurrency = getInlineConcurrency();
   const diagnostics = getRecentDiagnostics(recentJobs);
   const redisEnabled = isRedisQueueEnabled();
@@ -307,10 +296,20 @@ export async function getImageJobQueueSnapshotFromDeps({
   return {
     workerId,
     backend: redisEnabled ? "redis" : "inline",
+    configSource: settings.source,
+    configVersion: settings.version,
+    queueRuntimeVersion: settings.queueRuntimeVersion,
+    workerRuntimeVersion: settings.workerRuntimeVersion,
     queue,
     bullmq,
+    redisTarget: settings.redisTarget,
+    redisConfigured: settings.redisConfigured,
+    queuePrefix: settings.imageQueuePrefix,
+    attempts: settings.imageQueueAttempts,
+    backoffMs: settings.imageQueueBackoffMs,
     concurrency: redisEnabled ? getRedisWorkerConcurrency() : concurrency,
     userConcurrency: redisEnabled ? getRedisWorkerConcurrency() : getInlineUserConcurrency(concurrency),
+    workerConcurrency: settings.imageWorkerConcurrency,
     active: activeCount,
     queued: pending,
     pending,

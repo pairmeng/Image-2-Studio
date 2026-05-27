@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isProviderId, modelSupports, type ImageMode, type ProviderId } from "../models";
 import { shouldIgnoreImageJobProviderResult } from "../image-job-runner";
 import { AppError } from "./errors";
+import { classifyImageJobFailure } from "./image-job-failures";
 import { saveGeneratedImage } from "./files";
 import { appendHistory } from "./history";
 import {
@@ -401,6 +402,11 @@ export async function runImageJobWithDeps(
       size: logContext.size,
       resolution: logContext.resolution
     });
+    const failure = classifyImageJobFailure(normalized.message, {
+      status: normalized.status,
+      kind: normalized.kind,
+      cause: error
+    });
     const finishedAt = new Date();
     const logPayload = {
       jobId: job.id,
@@ -434,6 +440,8 @@ export async function runImageJobWithDeps(
       data: {
         status: "failed",
         error: normalized.message,
+        failureCode: failure.code,
+        failureCategory: failure.category,
         lockedBy: null,
         lockedAt: null,
         heartbeatAt: null,
