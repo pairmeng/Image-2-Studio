@@ -137,10 +137,10 @@ IMAGE_JOB_USER_CONCURRENCY=1
 REDIS_URL=redis://:password@redis.example.com:6379/0
 # 如果 Redis 服务商要求 TLS，使用 rediss://:password@redis.example.com:6380/0
 IMAGE_QUEUE_PREFIX=image2
-IMAGE_WORKER_CONCURRENCY=8
+IMAGE_WORKER_CONCURRENCY=4
 IMAGE_QUEUE_ATTEMPTS=3
 IMAGE_QUEUE_BACKOFF_MS=5000
-WORKER_DATABASE_CONNECTION_LIMIT=10
+WORKER_DATABASE_CONNECTION_LIMIT=5
 ```
 
 启用 Redis 后，Web 容器只把生图任务写入 BullMQ 队列，不在 Web 进程里直接生图；`image-2-worker` 服务会消费 Redis 队列。扩容 worker：
@@ -150,7 +150,62 @@ docker compose up -d --scale image-2-worker=4
 docker compose logs -f image-2-worker
 ```
 
-`IMAGE_WORKER_CONCURRENCY=8` 且 4 个 worker 容器时，目标生图并发约为 `32`。实际吞吐仍取决于上游供应商限流、Redis、PostgreSQL 连接数、CPU、内存和共享存储 IO。裸 `pnpm dev` 且没有 `REDIS_URL` 时仍会使用内置进程内调度器；Docker 默认走 Redis。
+`IMAGE_WORKER_CONCURRENCY=4` 且 4 个 worker 容器时，目标生图并发约为 `16`。实际吞吐仍取决于上游供应商限流、Redis、PostgreSQL 连接数、CPU、内存和共享存储 IO。裸 `pnpm dev` 且没有 `REDIS_URL` 时仍会使用内置进程内调度器；Docker 默认走 Redis。
+
+### 单机站群和并发扩容
+
+如果要让多个域名或单域名共用同一套数据库、Redis、storage 和 worker 池，使用扩容 overlay：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.scale.yml --profile migrate run --rm image-2-migrate
+docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale image-2-studio=2 --scale image-2-worker=2
+docker compose -f docker-compose.yml -f docker-compose.scale.yml ps
+```
+
+`docker-compose.scale.yml` 会把 Web 容器放到内部网络，由 `image-2-proxy` 暴露 `${APP_PORT:-3000}`。宿主机上的 1Panel、OpenResty 或 Nginx 可以把多个域名都反向代理到这个端口：
+
+```text
+domain-a.com -> http://127.0.0.1:3000
+domain-b.com -> http://127.0.0.1:3000
+admin.domain.com -> http://127.0.0.1:3000/admin
+```
+
+扩容时先跑一次 migration 容器，再启动 Web/Worker。扩容 overlay 会让 Web 容器跳过启动迁移，避免多个 Web 副本同时执行 Prisma migration。`image-2-proxy` 会把 `Host`、`X-Forwarded-Proto`、`X-Forwarded-For` 等请求头继续传给应用；如果外层还有 1Panel/OpenResty/Nginx，只需要把域名统一反向代理到 `${APP_PORT:-3000}`。
+
+推荐起步参数：
+
+```env
+WEB_REPLICAS=2
+WORKER_REPLICAS=2
+DATABASE_CONNECTION_LIMIT=5
+WORKER_DATABASE_CONNECTION_LIMIT=5
+MIGRATE_DATABASE_CONNECTION_LIMIT=5
+IMAGE_WORKER_CONCURRENCY=4
+```
+
+并发估算：
+
+```text
+目标生图并发 ≈ image-2-worker 容器数 × IMAGE_WORKER_CONCURRENCY
+```
+
+例如 4 个 worker、每个 worker 并发 4，目标生图并发约为 16。先扩 worker 容器数，再提高单 worker 并发；如果出现供应商 429、超时或失败率升高，先降低 `IMAGE_WORKER_CONCURRENCY` 或减少 worker 数。
+
+单机站群阶段仍使用宿主机 `./storage` 作为共享目录，所有 Web 和 Worker 容器必须挂载同一个目录。跨机器扩容前需要先升级为对象存储、NFS 或其他共享存储方案。
+
+如果要缩容或调整副本数，直接重新执行 `up -d --scale`：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale image-2-studio=2 --scale image-2-worker=4
+```
+
+扩容后重点检查：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.scale.yml ps
+docker compose -f docker-compose.yml -f docker-compose.scale.yml logs --tail=120 image-2-worker
+curl http://127.0.0.1:3000/api/health
+```
 
 如果只是通过 `http://SERVER_IP:APP_PORT` 临时测试，可以加入：
 

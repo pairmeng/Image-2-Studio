@@ -75,6 +75,18 @@ IMAGE_TAG=latest
 
 `latest` is updated automatically when a `v*` tag is pushed.
 
+For single-host scale deployments, keep one PostgreSQL, one Redis, and one shared `./storage` directory, then layer the scale compose file on top of the default stack:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.scale.yml --profile migrate run --rm image-2-migrate
+docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale image-2-studio=2 --scale image-2-worker=2
+docker compose -f docker-compose.yml -f docker-compose.scale.yml ps
+```
+
+`docker-compose.scale.yml` routes scaled web containers through the bundled Nginx proxy and keeps image generation in Redis-backed workers. Target generation concurrency is roughly `worker replicas × IMAGE_WORKER_CONCURRENCY`.
+
+Run the migration container once before rolling scaled web replicas. The scaled web containers set `DB_MIGRATE_ON_START=false` so multiple replicas do not run Prisma migrations at the same time. Point one or more external domains at `${APP_PORT:-3000}` on the host; the bundled proxy forwards `Host` and `X-Forwarded-*` headers to the app.
+
 Production release flow:
 
 ```powershell

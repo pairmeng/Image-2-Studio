@@ -16,6 +16,39 @@ describe("deployment configuration guardrails", () => {
     assert.match(compose, /IMAGE_PROCESS_ROLE:\s+worker/);
   });
 
+  it("adds a single-host scale overlay for web and worker replicas", () => {
+    const compose = read("docker-compose.yml");
+    const scaleCompose = read("docker-compose.scale.yml");
+    const nginxConfig = read("deploy/nginx/scale.conf");
+    const envExample = read(".env.example");
+
+    assert.match(scaleCompose, /image-2-migrate:/);
+    assert.match(scaleCompose, /IMAGE_PROCESS_ROLE:\s+migrate/);
+    assert.match(scaleCompose, /profiles:\s*\n\s+- migrate/);
+    assert.match(scaleCompose, /image-2-proxy:/);
+    assert.match(scaleCompose, /nginx:1\.27-alpine/);
+    assert.match(scaleCompose, /\$\{APP_PORT:-3000\}:80/);
+    assert.match(scaleCompose, /container_name:\s+null/);
+    assert.match(scaleCompose, /ports:\s+\[\]/);
+    assert.match(scaleCompose, /expose:\s*\n\s+- "3000"/);
+    assert.match(scaleCompose, /DB_MIGRATE_ON_START:\s+"false"/);
+    assert.match(scaleCompose, /WEB_REPLICAS:-2/);
+    assert.match(scaleCompose, /WORKER_REPLICAS:-2/);
+    assert.match(scaleCompose, /DATABASE_CONNECTION_LIMIT:-5/);
+    assert.match(scaleCompose, /WORKER_DATABASE_CONNECTION_LIMIT:-5/);
+
+    assert.match(nginxConfig, /upstream image2_web/);
+    assert.match(nginxConfig, /server image-2-studio:3000 resolve/);
+    assert.match(nginxConfig, /proxy_set_header Host \$host/);
+    assert.match(nginxConfig, /proxy_set_header X-Forwarded-Proto \$scheme/);
+
+    assert.match(envExample, /^WEB_REPLICAS=2$/m);
+    assert.match(envExample, /^WORKER_REPLICAS=2$/m);
+    assert.match(envExample, /^MIGRATE_DATABASE_CONNECTION_LIMIT=5$/m);
+
+    assert.match(compose, /image-2-worker:/);
+  });
+
   it("injects the release version into Docker images built by GitHub Actions", () => {
     const dockerfile = read("Dockerfile");
     const workflow = read(".github/workflows/docker-image.yml");
@@ -90,8 +123,18 @@ describe("deployment configuration guardrails", () => {
 
     assert.match(gitignore, /^dist-worker\/$/m);
     assert.match(dockerignore, /^dist-worker\/$/m);
+    assert.doesNotMatch(dockerignore, /^deploy\/$/m);
     assert.match(dockerfile, /pnpm build:worker/);
     assert.match(dockerfile, /COPY --from=builder \/app\/dist-worker \.\/dist-worker/);
+  });
+
+  it("supports a one-shot migration process role for scaled deployments", () => {
+    const entrypoint = read("scripts/docker-entrypoint.sh");
+
+    assert.match(entrypoint, /IMAGE_PROCESS_ROLE:-web}" = "migrate"/);
+    assert.match(entrypoint, /should_migrate="true"/);
+    assert.match(entrypoint, /migrate\)\s+echo "Migration role completed\."/);
+    assert.match(entrypoint, /IMAGE_PROCESS_ROLE must be web or worker/);
   });
 
   it("keeps local dev image publishing separate from production latest", () => {

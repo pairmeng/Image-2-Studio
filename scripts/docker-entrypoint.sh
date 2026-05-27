@@ -40,7 +40,14 @@ if ! su-exec nextjs:nodejs sh -c 'touch /app/storage/.write-test && rm /app/stor
   exit 1
 fi
 
-if [ "${DB_MIGRATE_ON_START:-true}" != "false" ] && [ "${DB_MIGRATE_ON_START:-true}" != "0" ]; then
+should_migrate="false"
+if [ "${IMAGE_PROCESS_ROLE:-web}" = "migrate" ]; then
+  should_migrate="true"
+elif [ "${DB_MIGRATE_ON_START:-true}" != "false" ] && [ "${DB_MIGRATE_ON_START:-true}" != "0" ]; then
+  should_migrate="true"
+fi
+
+if [ "$should_migrate" = "true" ]; then
   attempts="${DB_MIGRATE_ATTEMPTS:-12}"
   delay="${DB_MIGRATE_RETRY_SECONDS:-5}"
   current=1
@@ -66,6 +73,10 @@ else
 fi
 
 case "${IMAGE_PROCESS_ROLE:-web}" in
+  migrate)
+    echo "Migration role completed."
+    exit 0
+    ;;
   worker)
     if [ -z "$REDIS_URL" ]; then
       echo "Startup failed: REDIS_URL must be set when IMAGE_PROCESS_ROLE=worker." >&2
