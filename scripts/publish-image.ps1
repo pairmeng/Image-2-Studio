@@ -1,5 +1,5 @@
 param(
-  [string]$ImageName = "ghcr.io/pairmeng/image-2-studio",
+  [string]$ImageName = "ghcr.io/paimonria/image-2-studio",
   [string]$Tag = "",
   [string]$Platform = "linux/amd64",
   [string]$NpmRegistry = "https://registry.npmjs.org/",

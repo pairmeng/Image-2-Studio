@@ -40,7 +40,7 @@ services:
         max-file: "3"
 
   image-2-studio:
-    image: ${IMAGE_NAME:-ghcr.io/pairmeng/image-2-studio}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/paimonria/image-2-studio}:${IMAGE_TAG:-latest}
     pull_policy: always
     container_name: image-2-studio
     restart: unless-stopped
@@ -83,7 +83,7 @@ services:
         max-file: "3"
 
   image-2-worker:
-    image: ${IMAGE_NAME:-ghcr.io/pairmeng/image-2-studio}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/paimonria/image-2-studio}:${IMAGE_TAG:-latest}
     pull_policy: always
     restart: unless-stopped
     init: true

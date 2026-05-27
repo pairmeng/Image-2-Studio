@@ -8,6 +8,7 @@ node_modules/
 PROJECT_BRIEF.md
 DEVELOPMENT.local.md
 DEVELOPMENT.local.html
+docs/admin-console-v1-development.md
 FRONTEND_REFACTOR.md
 dist/
 dist-worker/
