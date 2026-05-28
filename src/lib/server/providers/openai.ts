@@ -95,6 +95,8 @@ async function getImageResult(response: OpenAIImageResponse): Promise<ProviderRe
 }
 
 export const openaiProvider: ImageProvider = {
+  adapterId: "openai",
+  label: "OpenAI",
   async createImage(request: ProviderRequest): Promise<ProviderResult> {
     const client = getClient(request);
     const common = getCommonPayload(request);
@@ -131,6 +133,18 @@ export const openaiProvider: ImageProvider = {
       providerMeta: {
         revisedPrompt: response.data?.[0]?.revised_prompt ?? null
       }
+    };
+  },
+  async testConnection(config) {
+    if (!config.apiKey) {
+      return { ok: false, message: "API key is missing." };
+    }
+
+    return { ok: true, message: config.baseUrl ? "OpenAI-compatible configuration is present." : "OpenAI configuration is present." };
+  },
+  sanitizeMeta(meta) {
+    return {
+      revisedPrompt: typeof meta.revisedPrompt === "string" ? meta.revisedPrompt.slice(0, 2000) : null
     };
   }
 };

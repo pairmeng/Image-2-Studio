@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogResponse } from "@/lib/types";
-import type { ProviderId } from "@/lib/models";
 import { fetchJson } from "@/components/studio/utils/api-client";
 
 export type Branding = {
@@ -10,14 +9,14 @@ export type Branding = {
 };
 
 type ProviderSettingsResponse = {
-  activeProvider?: ProviderId;
-  keys: Record<ProviderId, { configured: boolean; source: "user" | "platform" | "env" | "none" }>;
-  baseUrls: Partial<Record<ProviderId, string>>;
-  models: Partial<Record<ProviderId, string>>;
+  activeProvider?: string;
+  keys: Record<string, { configured: boolean; source: "user" | "platform" | "env" | "none" }>;
+  baseUrls: Partial<Record<string, string>>;
+  models: Partial<Record<string, string>>;
 };
 
 type CatalogDefaultSelection = {
-  provider: ProviderId;
+  provider: string;
   modelId?: string;
   defaultAspectRatio: string;
   defaultResolution: string;
@@ -26,7 +25,7 @@ type CatalogDefaultSelection = {
 };
 
 type UseStudioCatalogOptions = {
-  provider: ProviderId;
+  provider: string;
   defaultSiteTitle: string;
   defaultResolution: string;
   officialOpenAIResolution: string;
@@ -37,7 +36,7 @@ type UseStudioCatalogOptions = {
     keySaved: string;
   };
   onUnauthorized: (errorOrResponse: unknown) => boolean;
-  onActiveProviderChange: (provider: ProviderId) => void;
+  onActiveProviderChange: (provider: string) => void;
   onCatalogDefaultSelection: (selection: CatalogDefaultSelection) => void;
 };
 
@@ -106,7 +105,8 @@ export function useStudioCatalog({
       setCatalog(body);
       if (!shouldApplyDefaultSelection) return;
 
-      const preferred = body.providers.find((item) => item.provider === "openai" && item.configured)
+      const preferred = body.providers.find((item) => item.provider === provider && item.configured)
+        ?? body.providers.find((item) => item.provider === "openai" && item.configured)
         ?? body.providers.find((item) => item.configured)
         ?? body.providers[0];
       if (!preferred) return;
@@ -138,9 +138,9 @@ export function useStudioCatalog({
         onActiveProviderChange(body.activeProvider);
       }
 
-      setOpenaiBaseUrl(body.baseUrls?.openai ?? "");
-      setOpenaiModel(body.models?.openai ?? "");
-      setUserOpenaiKeyConfigured(Boolean(body.keys?.openai?.configured && body.keys.openai.source === "user"));
+      setOpenaiBaseUrl(body.baseUrls?.[provider] ?? body.baseUrls?.openai ?? "");
+      setOpenaiModel(body.models?.[provider] ?? body.models?.openai ?? "");
+      setUserOpenaiKeyConfigured(Boolean(body.keys?.[provider]?.configured && body.keys[provider].source === "user"));
       setProviderSettingsLoaded(true);
     } catch (caught) {
       if (onUnauthorized(caught)) return;
@@ -161,13 +161,13 @@ export function useStudioCatalog({
         body: JSON.stringify({
           activeProvider: provider,
           keys: {
-            openai: openaiKey
+            [provider]: openaiKey
           },
           baseUrls: {
-            openai: openaiBaseUrl
+            [provider]: openaiBaseUrl
           },
           models: {
-            openai: openaiModel
+            [provider]: openaiModel
           }
         }),
         fallbackMessage: messages.settingsSaveFailed

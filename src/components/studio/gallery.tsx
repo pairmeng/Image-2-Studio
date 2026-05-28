@@ -16,13 +16,12 @@ import {
   X
 } from "lucide-react";
 import type { CatalogResponse, ImageBatchResponse, ImageProjectResponse, ImageRecord } from "@/lib/types";
-import type { ProviderId } from "@/lib/models";
 import { RawImage } from "./raw-image";
 
 type GalleryLocale = "en" | "zh";
 
 export type GalleryHistoryFilter = {
-  provider: "all" | ProviderId;
+  provider: "all" | string;
   model: "all" | string;
 };
 

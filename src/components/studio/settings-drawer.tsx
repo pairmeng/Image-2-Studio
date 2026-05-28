@@ -1,13 +1,12 @@
 import { Check, Loader2, X } from "lucide-react";
 import type { CatalogResponse } from "@/lib/types";
-import type { ProviderId } from "@/lib/models";
 import type { HistoryFilter } from "@/components/studio/state/studio-context";
 import type { Locale } from "@/components/studio/utils/copy";
 
 type SettingsDrawerProps = {
   open: boolean;
   catalog: CatalogResponse | null;
-  provider: ProviderId;
+  provider: string;
   openaiKey: string;
   openaiBaseUrl: string;
   openaiModel: string;
@@ -18,7 +17,7 @@ type SettingsDrawerProps = {
   historyFilter: HistoryFilter;
   t: (key: string) => string;
   onClose: () => void;
-  onProviderChange: (provider: ProviderId) => void;
+  onProviderChange: (provider: string) => void;
   onOpenaiKeyChange: (value: string) => void;
   onOpenaiBaseUrlChange: (value: string) => void;
   onOpenaiModelChange: (value: string) => void;
@@ -47,6 +46,9 @@ export function SettingsDrawer({
   onSaveProviderSettings,
   onHistoryFilterChange
 }: SettingsDrawerProps) {
+  const selectedProvider = catalog?.providers.find((item) => item.provider === provider);
+  const providerLabel = selectedProvider?.label ?? t("provider");
+
   return (
     <aside className={`settings-drawer ${open ? "is-open" : ""}`} aria-hidden={!open}>
       <div className="drawer-head">
@@ -80,7 +82,7 @@ export function SettingsDrawer({
         <p className="section-label">{t("apiKeys")}</p>
         <div className="filter-stack">
           <label className="key-field">
-            <span>{t("openaiKey")}</span>
+            <span>{providerLabel} API Key</span>
             <input
               className="field"
               value={openaiKey}
@@ -94,7 +96,7 @@ export function SettingsDrawer({
       </section>
 
       <section className="drawer-section">
-        <p className="section-label">{t("openaiCompatible")}</p>
+        <p className="section-label">{providerLabel}</p>
         <div className="filter-stack">
           <label className="key-field">
             <span>{t("baseUrl")}</span>

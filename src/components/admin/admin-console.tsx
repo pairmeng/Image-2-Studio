@@ -7,6 +7,7 @@ import { AdminImages } from "./admin-images";
 import { AdminShell } from "./admin-layout";
 import { AdminMonitor } from "./admin-monitor";
 import { AdminOverview } from "./admin-overview";
+import { AdminProviders } from "./admin-providers";
 import { AdminSettings } from "./admin-settings";
 import { AdminUsage } from "./admin-usage";
 import { AdminUsers } from "./admin-users";
@@ -34,20 +35,27 @@ export function AdminConsole({ currentUser }: { currentUser: PublicUser }) {
       {admin.activeTab === "settings" && (
         <AdminSettings
           overview={admin.overview}
-          providerKey={admin.providerKey}
-          providerBaseUrl={admin.providerBaseUrl}
-          providerModel={admin.providerModel}
           queueRedisUrl={admin.queueRedisUrl}
           clearQueueRedisUrl={admin.clearQueueRedisUrl}
           busy={admin.busy}
           onSettingsChange={admin.updateSettings}
-          onProviderKeyChange={admin.setProviderKey}
-          onProviderBaseUrlChange={admin.setProviderBaseUrl}
-          onProviderModelChange={admin.setProviderModel}
           onQueueRedisUrlChange={admin.setQueueRedisUrl}
           onClearQueueRedisUrlChange={admin.setClearQueueRedisUrl}
           onSaveSettings={() => void admin.saveSettings()}
-          onSaveProvider={() => void admin.saveProvider()}
+        />
+      )}
+
+      {admin.activeTab === "providers" && (
+        <AdminProviders
+          providers={admin.providers}
+          selectedProviderId={admin.selectedProviderId}
+          draft={admin.providerDraft}
+          busy={admin.busy}
+          onSelectProvider={admin.selectProviderForEdit}
+          onDraftChange={admin.updateProviderDraft}
+          onAddProvider={admin.addProviderDraft}
+          onSaveProvider={() => void admin.saveProviderDraft()}
+          onTestProvider={(providerId) => void admin.testProviderDraft(providerId)}
         />
       )}
 

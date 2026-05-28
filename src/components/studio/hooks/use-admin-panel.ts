@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { ProviderId } from "@/lib/models";
 import type { PublicUser } from "@/lib/types";
 import { fetchJson } from "@/components/studio/utils/api-client";
 
@@ -12,9 +11,9 @@ export type AdminOverview = {
     logoUrl?: string | null;
   };
   platformProvider: {
-    keys: Record<ProviderId, { configured: boolean }>;
-    baseUrls: Partial<Record<ProviderId, string>>;
-    models: Partial<Record<ProviderId, string>>;
+    keys: Record<string, { configured: boolean }>;
+    baseUrls: Partial<Record<string, string>>;
+    models: Partial<Record<string, string>>;
   };
   jobQueue: {
     queue: {

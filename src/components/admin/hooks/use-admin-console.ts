@@ -4,18 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PublicUser } from "@/lib/types";
 import {
   createAdminUser,
+  createAdminProvider,
   deleteAdminUser,
   loadAdminAuditLogs,
   loadAdminImages,
   loadAdminJobs,
   loadAdminMonitor,
   loadAdminOverview,
+  loadAdminProviders,
   loadAdminUsage,
   runAdminJobAction,
   saveAdminSettings,
-  savePlatformProvider,
+  saveAdminProvider,
+  testAdminProvider,
   updateAdminUser,
   type AdminAuditLogRecord,
+  type AdminProviderSaveInput,
+  type AdminProvidersResponse,
   type AdminImageFilters,
   type AdminImageRecord,
   type AdminJobFilters,
@@ -25,7 +30,7 @@ import {
   type AdminUsageResponse
 } from "@/components/admin/utils/admin-api";
 
-export type AdminTab = "overview" | "settings" | "users" | "usage" | "monitor" | "images" | "audit";
+export type AdminTab = "overview" | "settings" | "providers" | "users" | "usage" | "monitor" | "images" | "audit";
 
 const emptyImageFilters: AdminImageFilters = {
   userId: "",
@@ -46,11 +51,26 @@ const emptyJobFilters: AdminJobFilters = {
   q: ""
 };
 
+const emptyProviderDraft: AdminProviderSaveInput = {
+  providerId: "openai",
+  adapterId: "openai",
+  label: "OpenAI",
+  enabled: true,
+  key: "",
+  baseUrl: "",
+  defaultModel: "gpt-image-2",
+  models: [],
+  priority: 10
+};
+
 export function useAdminConsole(currentUser: PublicUser) {
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [usage, setUsage] = useState<AdminUsageResponse | null>(null);
   const [monitor, setMonitor] = useState<AdminMonitorResponse | null>(null);
+  const [providers, setProviders] = useState<AdminProvidersResponse | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState("openai");
+  const [providerDraft, setProviderDraft] = useState<AdminProviderSaveInput>(emptyProviderDraft);
   const [adminJobs, setAdminJobs] = useState<AdminJobRecord[]>([]);
   const [adminJobCursor, setAdminJobCursor] = useState<string | undefined>();
   const [adminJobFilters, setAdminJobFilters] = useState<AdminJobFilters>(emptyJobFilters);
@@ -62,9 +82,6 @@ export function useAdminConsole(currentUser: PublicUser) {
   const [selectedImage, setSelectedImage] = useState<AdminImageRecord | null>(null);
   const [usageRange, setUsageRange] = useState<"7d" | "30d">("7d");
   const [usageUserId, setUsageUserId] = useState("");
-  const [providerKey, setProviderKey] = useState("");
-  const [providerBaseUrl, setProviderBaseUrl] = useState("");
-  const [providerModel, setProviderModel] = useState("");
   const [queueRedisUrl, setQueueRedisUrl] = useState("");
   const [clearQueueRedisUrl, setClearQueueRedisUrl] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -80,8 +97,6 @@ export function useAdminConsole(currentUser: PublicUser) {
   const refreshOverview = useCallback(async () => {
     const body = await loadAdminOverview();
     setOverview(body);
-    setProviderBaseUrl(body.platformProvider.baseUrls.openai ?? "");
-    setProviderModel(body.platformProvider.models.openai ?? "");
   }, []);
 
   const refreshUsage = useCallback(async () => {
@@ -194,16 +209,75 @@ export function useAdminConsole(currentUser: PublicUser) {
     });
   }
 
-  async function saveProvider() {
-    await runAction("provider", async () => {
-      await savePlatformProvider({
-        key: providerKey,
-        baseUrl: providerBaseUrl,
-        model: providerModel
-      });
-      setProviderKey("");
-      setMessage("平台供应商配置已保存。");
+  function selectProviderForEdit(provider: AdminProvidersResponse["providers"][number]) {
+    setSelectedProviderId(provider.providerId);
+    setProviderDraft({
+      providerId: provider.providerId,
+      adapterId: provider.adapterId,
+      label: provider.label,
+      enabled: provider.enabled,
+      key: "",
+      baseUrl: provider.baseUrl,
+      defaultModel: provider.defaultModel ?? "",
+      models: provider.models,
+      priority: provider.priority
+    });
+  }
+
+  const refreshProviders = useCallback(async (nextSelectedProviderId?: string) => {
+    const body = await loadAdminProviders();
+    setProviders(body);
+    const targetProviderId = nextSelectedProviderId ?? selectedProviderId;
+    const selected = body.providers.find((provider) => provider.providerId === targetProviderId) ?? body.providers[0];
+    if (selected) {
+      selectProviderForEdit(selected);
+    }
+  }, [selectedProviderId]);
+
+  useEffect(() => {
+    if (activeTab === "providers") {
+      void runAction("providers", refreshProviders);
+    }
+  }, [activeTab, refreshProviders, runAction]);
+
+  function updateProviderDraft(next: Partial<AdminProviderSaveInput>) {
+    setProviderDraft((current) => ({ ...current, ...next }));
+  }
+
+  function addProviderDraft() {
+    setSelectedProviderId("");
+    setProviderDraft({
+      ...emptyProviderDraft,
+      providerId: "custom-provider",
+      adapterId: "openai-compatible",
+      label: "Custom Provider",
+      defaultModel: "custom-image-model",
+      priority: 100
+    });
+  }
+
+  async function saveProviderDraft() {
+    await runAction("provider-save", async () => {
+      const isExisting = Boolean(providers?.providers.some((provider) => provider.providerId === selectedProviderId));
+      const saved = isExisting
+        ? await saveAdminProvider(providerDraft)
+        : await createAdminProvider(providerDraft);
+      setMessage("供应商配置已保存。");
+      setSelectedProviderId(saved.provider.providerId);
+      await refreshProviders(saved.provider.providerId);
       await refreshOverview();
+      if (auditLogs.length > 0 || activeTab === "audit") {
+        await refreshAuditLogs();
+      }
+    });
+  }
+
+  async function testProviderDraft(providerId: string) {
+    if (!providerId) return;
+    await runAction("provider-test", async () => {
+      const result = await testAdminProvider(providerId);
+      setMessage(result.message);
+      await refreshProviders();
       if (auditLogs.length > 0 || activeTab === "audit") {
         await refreshAuditLogs();
       }
@@ -328,6 +402,9 @@ export function useAdminConsole(currentUser: PublicUser) {
     overview,
     usage,
     monitor,
+    providers,
+    selectedProviderId,
+    providerDraft,
     adminJobs,
     adminJobCursor,
     adminJobFilters,
@@ -342,12 +419,6 @@ export function useAdminConsole(currentUser: PublicUser) {
     setUsageRange,
     usageUserId,
     setUsageUserId,
-    providerKey,
-    setProviderKey,
-    providerBaseUrl,
-    setProviderBaseUrl,
-    providerModel,
-    setProviderModel,
     queueRedisUrl,
     setQueueRedisUrl,
     clearQueueRedisUrl,
@@ -371,6 +442,7 @@ export function useAdminConsole(currentUser: PublicUser) {
     refreshOverview: () => runAction("overview", refreshOverview),
     refreshUsage: () => runAction("usage", refreshUsage),
     refreshMonitor: () => runAction("monitor", refreshMonitor),
+    refreshProviders: () => runAction("providers", refreshProviders),
     refreshAdminJobs: () => runAction("admin-jobs", () => refreshAdminJobs()),
     refreshImages: () => runAction("images", () => refreshImages()),
     refreshAuditLogs: () => runAction("audit", () => refreshAuditLogs()),
@@ -378,7 +450,11 @@ export function useAdminConsole(currentUser: PublicUser) {
     loadMoreImages: () => runAction("images-more", () => refreshImages({ append: true, cursor: imageCursor })),
     loadMoreAdminJobs: () => runAction("admin-jobs-more", () => refreshAdminJobs({ append: true, cursor: adminJobCursor })),
     saveSettings,
-    saveProvider,
+    selectProviderForEdit,
+    updateProviderDraft,
+    addProviderDraft,
+    saveProviderDraft,
+    testProviderDraft,
     createUser,
     toggleUserDisabled,
     changeUserRole,

@@ -56,6 +56,45 @@ export type AdminOverview = {
   }>;
 };
 
+export type AdminProviderSetting = {
+  provider: string;
+  providerId: string;
+  adapterId: "openai" | "openai-compatible" | "mock";
+  label: string;
+  enabled: boolean;
+  configured: boolean;
+  source: "user" | "platform" | "env" | "none";
+  baseUrlConfigured: boolean;
+  supportsCustomSize: boolean;
+  defaultModel?: string;
+  healthStatus?: string;
+  baseUrl: string;
+  baseUrlHost: string;
+  modelCount: number;
+  models: Array<{ modelId: string; label: string }>;
+  priority: number;
+  healthMessage?: string | null;
+  lastHealthCheckAt?: string | null;
+  updatedAt: string;
+};
+
+export type AdminProvidersResponse = {
+  providers: AdminProviderSetting[];
+  adapters: Array<{ adapterId: AdminProviderSetting["adapterId"]; label: string }>;
+};
+
+export type AdminProviderSaveInput = {
+  providerId: string;
+  adapterId: AdminProviderSetting["adapterId"];
+  label: string;
+  enabled: boolean;
+  key: string;
+  baseUrl: string;
+  defaultModel: string;
+  models: Array<{ modelId: string; label?: string }>;
+  priority: number;
+};
+
 export type AdminJobQueueSnapshot = {
   workerId?: string;
   backend?: "redis" | "inline";
@@ -274,6 +313,42 @@ export function loadAdminOverview() {
   return fetchJson<AdminOverview>("/api/admin/overview", {
     cache: "no-store",
     fallbackMessage: "管理概览加载失败。"
+  });
+}
+
+export function loadAdminProviders() {
+  return fetchJson<AdminProvidersResponse>("/api/admin/providers", {
+    cache: "no-store",
+    fallbackMessage: "供应商列表加载失败。"
+  });
+}
+
+export function saveAdminProvider(input: AdminProviderSaveInput) {
+  const endpoint = input.providerId
+    ? `/api/admin/providers/${encodeURIComponent(input.providerId)}`
+    : "/api/admin/providers";
+
+  return fetchJson<{ provider: AdminProviderSetting }>(endpoint, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+    fallbackMessage: "供应商配置保存失败。"
+  });
+}
+
+export function createAdminProvider(input: AdminProviderSaveInput) {
+  return fetchJson<{ provider: AdminProviderSetting }>("/api/admin/providers", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+    fallbackMessage: "供应商创建失败。"
+  });
+}
+
+export function testAdminProvider(providerId: string) {
+  return fetchJson<{ ok: boolean; message: string }>(`/api/admin/providers/${encodeURIComponent(providerId)}/test`, {
+    method: "POST",
+    fallbackMessage: "供应商测试失败。"
   });
 }
 

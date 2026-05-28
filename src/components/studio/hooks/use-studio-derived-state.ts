@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ImageMode, ProviderId } from "@/lib/models";
+import type { ImageMode } from "@/lib/models";
 import type {
   CatalogResponse,
   ImageBatchResponse,
@@ -37,7 +37,7 @@ type UseStudioDerivedStateInput = {
   activeView: StudioView;
   studioLayout: StudioLayout;
   catalog: CatalogResponse | null;
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   aspectRatio: string;

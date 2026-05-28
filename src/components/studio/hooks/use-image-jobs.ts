@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ImageBatchDetailResponse, ImageBatchItemResponse, ImageJobResponse, ImageJobsResponse, PublicUser } from "@/lib/types";
-import type { ImageMode, ProviderId } from "@/lib/models";
+import type { ImageMode } from "@/lib/models";
 import { fetchJson } from "@/components/studio/utils/api-client";
 
 export type BatchGenerationStatus = "queued" | "creating" | "pending" | "paused" | "running" | "succeeded" | "failed";
@@ -9,7 +9,7 @@ export type BatchGenerationItem = {
   id: string;
   batchId?: string;
   index: number;
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   prompt: string;

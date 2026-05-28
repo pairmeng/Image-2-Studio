@@ -183,6 +183,7 @@
 
 .admin-link-button,
 .admin-primary-button,
+.admin-secondary-button,
 .admin-icon-text-button,
 .admin-icon-button {
   display: inline-flex;
@@ -201,6 +202,7 @@
 
 .admin-link-button,
 .admin-primary-button,
+.admin-secondary-button,
 .admin-icon-text-button {
   padding: 0 12px;
 }
@@ -209,6 +211,11 @@
   border-color: rgba(33, 119, 255, 0.32);
   color: #fff;
   background: var(--accent);
+}
+
+.admin-secondary-button {
+  border-color: rgba(22, 126, 101, 0.24);
+  color: var(--accent-strong);
 }
 
 .admin-icon-button {
@@ -702,6 +709,48 @@
   grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) minmax(180px, 0.8fr);
 }
 
+.admin-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-provider-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-provider-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--text);
+  background: var(--panel);
+  text-align: left;
+}
+
+.admin-provider-list-item.is-active {
+  border-color: rgba(33, 119, 255, 0.34);
+  background: rgba(33, 119, 255, 0.08);
+}
+
+.admin-provider-list-item strong,
+.admin-provider-list-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-provider-list-item small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
 .admin-queue-status-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -796,6 +845,7 @@
 
 .admin-field input,
 .admin-field select,
+.admin-field textarea,
 .admin-search-field input,
 .admin-inline-select,
 .admin-inline-form input {
@@ -808,6 +858,12 @@
   color: var(--text);
   background: var(--field);
   outline: none;
+}
+
+.admin-field textarea {
+  min-height: 132px;
+  padding: 9px;
+  resize: vertical;
 }
 
 .admin-field.is-muted,

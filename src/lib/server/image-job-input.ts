@@ -1,9 +1,11 @@
 import {
   createOpenAICompatibleModel,
+  createGenericProviderModel,
   getModel,
   isImageMode,
   isProviderId,
   modelSupports,
+  OPENAI_PROVIDER_ID,
   type ImageMode,
   type ModelDefinition,
   type ProviderId
@@ -12,7 +14,7 @@ import { BATCH_START_MAX_PROMPT_LENGTH, BATCH_START_MAX_PROMPTS, type BatchStart
 import { AppError } from "./errors";
 import { assertAllowedImageFile, readStoredImageForUser } from "./files";
 import { findRecordsByIds } from "./history";
-import { getResolvedProviderConfig, type ResolvedProviderConfig } from "./provider-config";
+import { getModelsForResolvedProvider, getResolvedProviderConfig, type ResolvedProviderConfig } from "./provider-config";
 import type { InputImage } from "./provider-types";
 
 const MAX_PROMPT_LENGTH = 2000;
@@ -125,9 +127,9 @@ function resolveImageRequestSize(
   resolution: string | undefined,
   requestedSize: string | undefined
 ) {
-  if (provider !== "openai") return requestedSize;
+  if (provider !== OPENAI_PROVIDER_ID) return requestedSize;
 
-  if (isOpenAiCompatibleGateway(resolvedProvider)) {
+  if (resolvedProvider.adapterId !== "openai" || isOpenAiCompatibleGateway(resolvedProvider)) {
     return resolution ? mapAspectRatioToResolutionSize(aspectRatio, resolution) : requestedSize;
   }
 
@@ -171,9 +173,15 @@ export function assertModelOptions(model: ModelDefinition, input: {
 }
 
 export function validateModelRequest(provider: ProviderId, modelId: string, mode: ImageMode, resolvedProvider: ResolvedProviderConfig) {
-  const model = getModel(provider, modelId)
-    ?? (provider === "openai" && resolvedProvider.model && resolvedProvider.model === modelId
-      ? createOpenAICompatibleModel(resolvedProvider.model)
+  const model = getModelsForResolvedProvider(resolvedProvider).find((item) => item.provider === provider && item.modelId === modelId)
+    ?? getModel(provider, modelId)
+    ?? (resolvedProvider.model && resolvedProvider.model === modelId
+      ? createGenericProviderModel({
+        provider,
+        adapterId: resolvedProvider.adapterId,
+        modelId: resolvedProvider.model,
+        supportsCustomSize: resolvedProvider.adapterId !== "openai" || Boolean(resolvedProvider.baseUrl)
+      })
       : undefined);
 
   if (!model) {
@@ -225,12 +233,24 @@ export function parseJobRequest(requestJson: string): ImageJobRequest {
   };
 }
 
-export function resolveModelForJob(input: ImageJobRequest) {
+export function resolveModelForJob(input: ImageJobRequest, resolvedProvider?: ResolvedProviderConfig) {
+  const resolvedModel = resolvedProvider
+    ? getModelsForResolvedProvider(resolvedProvider).find((model) => model.provider === input.provider && model.modelId === input.modelId)
+    : undefined;
+  if (resolvedModel) return resolvedModel;
+
   const catalogModel = getModel(input.provider, input.modelId);
   if (catalogModel) return catalogModel;
 
-  if (input.customModel && input.provider === "openai") {
-    return createOpenAICompatibleModel(input.modelId);
+  if (input.customModel) {
+    return resolvedProvider?.adapterId === "openai-compatible" || input.provider === OPENAI_PROVIDER_ID
+      ? createOpenAICompatibleModel(input.modelId, input.provider)
+      : createGenericProviderModel({
+        provider: input.provider,
+        adapterId: resolvedProvider?.adapterId ?? "mock",
+        modelId: input.modelId,
+        supportsCustomSize: resolvedProvider?.adapterId !== "openai" || Boolean(resolvedProvider?.baseUrl)
+      });
   }
 
   return undefined;
@@ -288,6 +308,10 @@ export async function resolveImageJobFormInput(userId: string, formData: FormDat
   }
 
   const resolvedProvider = await getResolvedProviderConfig(userId, providerValue);
+  if (!resolvedProvider.enabled) {
+    throw new AppError("This provider is disabled.", 503);
+  }
+
   if (!resolvedProvider.apiKey) {
     throw new AppError("This provider has no API key configured.", 503);
   }
@@ -301,9 +325,9 @@ export async function resolveImageJobFormInput(userId: string, formData: FormDat
   const size = resolveImageRequestSize(providerValue, resolvedProvider, aspectRatio, resolution, requestedSize);
   const quality = getOptionalString(formData, "quality") ?? model.defaultQuality;
   const inputFidelity = getOptionalString(formData, "inputFidelity") ?? model.inputFidelityOptions?.[0];
-  const allowCustomSize = providerValue === "openai" && isOpenAiCompatibleGateway(resolvedProvider);
+  const allowCustomSize = resolvedProvider.adapterId !== "openai" || isOpenAiCompatibleGateway(resolvedProvider) || Boolean(model.supportsCustomSize);
 
-  if (providerValue === "openai" && !allowCustomSize) {
+  if (providerValue === OPENAI_PROVIDER_ID && resolvedProvider.adapterId === "openai" && !allowCustomSize) {
     assertOfficialOpenAiSize(size);
   }
 
@@ -316,8 +340,9 @@ export async function resolveImageJobFormInput(userId: string, formData: FormDat
     assertAllowedImageFile(file);
   }
 
-  if (files.length + sourceImageIds.length > MAX_REFERENCE_IMAGES) {
-    throw new AppError(`Use at most ${MAX_REFERENCE_IMAGES} reference images.`);
+  const maxReferenceImages = model.maxReferenceImages ?? MAX_REFERENCE_IMAGES;
+  if (files.length + sourceImageIds.length > maxReferenceImages) {
+    throw new AppError(`Use at most ${maxReferenceImages} reference images.`);
   }
 
   if (modeValue === "image-to-image" && files.length + sourceImageIds.length === 0) {

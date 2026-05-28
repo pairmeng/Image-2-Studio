@@ -6,6 +6,7 @@ import {
   FileClock,
   Gauge,
   ImageIcon,
+  Plug,
   Settings,
   Users
 } from "lucide-react";
@@ -20,6 +21,7 @@ export const adminTabs: Array<{
 }> = [
   { id: "overview", label: "概览", description: "平台运行摘要", icon: <Gauge size={18} /> },
   { id: "settings", label: "平台设置", description: "品牌与供应商", icon: <Settings size={18} /> },
+  { id: "providers", label: "供应商管理", description: "模型与密钥", icon: <Plug size={18} /> },
   { id: "users", label: "用户管理", description: "账号与角色", icon: <Users size={18} /> },
   { id: "usage", label: "用量统计", description: "趋势和排行", icon: <BarChart3 size={18} /> },
   { id: "monitor", label: "平台监控", description: "队列和失败", icon: <Activity size={18} /> },

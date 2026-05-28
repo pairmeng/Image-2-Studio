@@ -5,36 +5,22 @@ import { formatAdminConfigSource, formatAdminQueueMode } from "./utils/admin-for
 
 export function AdminSettings({
   overview,
-  providerKey,
-  providerBaseUrl,
-  providerModel,
   queueRedisUrl,
   clearQueueRedisUrl,
   busy,
   onSettingsChange,
-  onProviderKeyChange,
-  onProviderBaseUrlChange,
-  onProviderModelChange,
   onQueueRedisUrlChange,
   onClearQueueRedisUrlChange,
-  onSaveSettings,
-  onSaveProvider
+  onSaveSettings
 }: {
   overview: AdminOverview | null;
-  providerKey: string;
-  providerBaseUrl: string;
-  providerModel: string;
   queueRedisUrl: string;
   clearQueueRedisUrl: boolean;
   busy: string;
   onSettingsChange: (next: Partial<AdminOverview["settings"]>) => void;
-  onProviderKeyChange: (value: string) => void;
-  onProviderBaseUrlChange: (value: string) => void;
-  onProviderModelChange: (value: string) => void;
   onQueueRedisUrlChange: (value: string) => void;
   onClearQueueRedisUrlChange: (value: boolean) => void;
   onSaveSettings: () => void;
-  onSaveProvider: () => void;
 }) {
   if (!overview) {
     return <EmptyState>正在加载平台设置。</EmptyState>;
@@ -237,54 +223,6 @@ export function AdminSettings({
         </div>
       </AdminSection>
 
-      <AdminSection
-        title="平台供应商"
-        description="平台 OpenAI 配置只显示是否已配置，密钥不回显明文。"
-        actions={(
-          <button className="admin-primary-button" type="button" onClick={onSaveProvider} disabled={Boolean(busy)}>
-            <Check size={16} />
-            保存供应商
-          </button>
-        )}
-      >
-        <div className="admin-provider-head">
-          <div>
-            <strong>OpenAI</strong>
-            <span>平台兜底供应商</span>
-          </div>
-          <StatusBadge
-            value={overview.platformProvider.keys.openai?.configured ? "configured" : "missing"}
-            tone={overview.platformProvider.keys.openai?.configured ? "good" : "warn"}
-          />
-        </div>
-        <div className="admin-form-grid admin-provider-form-grid">
-          <label className="admin-field">
-            <span>OpenAI 平台密钥</span>
-            <input
-              type="password"
-              value={providerKey}
-              placeholder="留空则不替换现有 key"
-              onChange={(event) => onProviderKeyChange(event.target.value)}
-            />
-          </label>
-          <label className="admin-field">
-            <span>接口地址</span>
-            <input
-              value={providerBaseUrl}
-              placeholder="https://api.example.com/v1"
-              onChange={(event) => onProviderBaseUrlChange(event.target.value)}
-            />
-          </label>
-          <label className="admin-field">
-            <span>模型覆盖</span>
-            <input
-              value={providerModel}
-              placeholder="gpt-image-2"
-              onChange={(event) => onProviderModelChange(event.target.value)}
-            />
-          </label>
-        </div>
-      </AdminSection>
     </div>
   );
 }

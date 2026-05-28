@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ImageMode, ProviderId } from "@/lib/models";
+import type { ImageMode } from "@/lib/models";
 
 export type PendingGeneration = {
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   prompt: string;

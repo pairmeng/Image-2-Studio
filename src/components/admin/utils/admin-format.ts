@@ -80,6 +80,13 @@ export function formatAdminQueueMode(mode: string | undefined) {
   return mode ?? "-";
 }
 
+export function formatAdminProviderAdapter(adapterId: string | undefined) {
+  if (adapterId === "openai") return "OpenAI 官方";
+  if (adapterId === "openai-compatible") return "OpenAI 兼容";
+  if (adapterId === "mock") return "Mock 测试";
+  return adapterId ?? "-";
+}
+
 export function formatAdminConfigSource(source: string | undefined) {
   if (source === "database") return "数据库";
   if (source === "env") return "环境变量";

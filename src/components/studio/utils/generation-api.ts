@@ -3,11 +3,11 @@ import type {
   ImageBatchDetailResponse,
   ImageJobResponse
 } from "@/lib/types";
-import type { ImageMode, ProviderId } from "@/lib/models";
+import type { ImageMode } from "@/lib/models";
 import { fetchJson } from "./api-client";
 
 export type ImageJobFormInput = {
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   prompt: string;

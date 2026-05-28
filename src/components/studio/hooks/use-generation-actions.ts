@@ -5,7 +5,7 @@ import type {
   ImageRecord
 } from "@/lib/types";
 import { isProviderId } from "@/lib/models";
-import type { ImageMode, ProviderId } from "@/lib/models";
+import type { ImageMode } from "@/lib/models";
 import {
   batchItemToGenerationItem,
   type BatchGenerationItem
@@ -102,8 +102,8 @@ type UseGenerationActionsOptions = {
   supportsCustomSize: boolean;
   canUseImageMode: boolean;
   catalog: {
-    providers: Array<{ provider: ProviderId; configured: boolean }>;
-    models: Array<{ provider: ProviderId; modelId: string; capabilities: string[] }>;
+    providers: Array<{ provider: string; configured: boolean }>;
+    models: Array<{ provider: string; modelId: string; capabilities: string[] }>;
   } | null;
   computedSize: string;
   batchPrompts: string[];
@@ -230,7 +230,7 @@ export function useGenerationActions({
     setCopiedPromptId
   } = actions;
 
-  function updateProvider(nextProvider: ProviderId) {
+  function updateProvider(nextProvider: string) {
     setProvider(nextProvider);
     setError("");
     setQuickMenu(null);

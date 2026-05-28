@@ -1,4 +1,4 @@
-import type { ImageMode, ProviderId } from "@/lib/models";
+import type { ImageMode } from "@/lib/models";
 import type { PromptTemplateResponse } from "@/lib/types";
 import type { Locale } from "@/components/studio/utils/copy";
 import {
@@ -11,7 +11,7 @@ import {
 } from "@/components/studio/utils/generation-options";
 
 export type HistoryFilter = {
-  provider: "all" | ProviderId;
+  provider: "all" | string;
   model: "all" | string;
 };
 
@@ -21,7 +21,7 @@ export type StudioState = {
   selectedRecordId: string;
   activeView: StudioView;
   studioLayout: StudioLayout;
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   prompt: string;

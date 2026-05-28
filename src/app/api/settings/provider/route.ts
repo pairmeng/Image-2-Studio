@@ -29,21 +29,20 @@ export async function POST(request: Request) {
     const activeProvider = body.activeProvider && isProviderId(body.activeProvider)
       ? body.activeProvider
       : undefined;
-    const keys: Partial<Record<"openai", string>> = {};
+    const keys: Partial<Record<string, string>> = {};
+    const baseUrls: Partial<Record<string, string>> = {};
+    const models: Partial<Record<string, string>> = {};
 
-    if (typeof body.keys?.openai === "string") {
-      keys.openai = body.keys.openai;
+    for (const [providerId, value] of Object.entries(body.keys ?? {})) {
+      if (isProviderId(providerId) && typeof value === "string") keys[providerId] = value;
     }
 
-    const baseUrls: Partial<Record<"openai", string>> = {};
-    const models: Partial<Record<"openai", string>> = {};
-
-    if (typeof body.baseUrls?.openai === "string") {
-      baseUrls.openai = body.baseUrls.openai;
+    for (const [providerId, value] of Object.entries(body.baseUrls ?? {})) {
+      if (isProviderId(providerId) && typeof value === "string") baseUrls[providerId] = value;
     }
 
-    if (typeof body.models?.openai === "string") {
-      models.openai = body.models.openai;
+    for (const [providerId, value] of Object.entries(body.models ?? {})) {
+      if (isProviderId(providerId) && typeof value === "string") models[providerId] = value;
     }
 
     const config = await saveProviderConfig(user.id, { activeProvider, keys, baseUrls, models });

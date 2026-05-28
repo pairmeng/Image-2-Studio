@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       models?: Partial<Record<string, string>>;
     }>(request);
 
-    await savePlatformProviderConfig({
+    const provider = await savePlatformProviderConfig({
       keys: {
         openai: typeof body.keys?.openai === "string" ? body.keys.openai : undefined
       },
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       userAgent: request.headers.get("user-agent")
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, provider });
   } catch (error) {
     return handleRouteError(error);
   }

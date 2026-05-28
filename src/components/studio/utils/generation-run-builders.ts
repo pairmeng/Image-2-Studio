@@ -1,4 +1,4 @@
-import type { ImageMode, ProviderId } from "../../../lib/models";
+import type { ImageMode } from "../../../lib/models";
 import { isRetryableBatchItemStatus } from "../../../lib/image-job-state";
 import type { ImageJobResponse } from "../../../lib/types";
 
@@ -8,7 +8,7 @@ type GenerationReferenceInput = {
 };
 
 type PendingGenerationInput = GenerationReferenceInput & {
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   prompt: string;
@@ -43,7 +43,7 @@ type BatchPollingDeadlineInput = {
 type OptimisticImageJobInput = {
   jobId: string;
   status?: ImageJobResponse["status"];
-  provider: ProviderId;
+  provider: string;
   model: string;
   mode: ImageMode;
   prompt: string;

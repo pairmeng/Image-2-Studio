@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isProviderId, modelSupports, type ImageMode, type ProviderId } from "../models";
+import { isProviderId, modelSupports, type ImageMode, type ProviderAdapterId, type ProviderId } from "../models";
 import { shouldIgnoreImageJobProviderResult } from "../image-job-runner";
 import { AppError } from "./errors";
 import { classifyImageJobFailure } from "./image-job-failures";
@@ -7,8 +7,6 @@ import { saveGeneratedImage } from "./files";
 import { appendHistory } from "./history";
 import {
   assertModelOptions,
-  assertOfficialOpenAiSize,
-  isOpenAiCompatibleGateway,
   loadInputImages,
   parseJobRequest,
   resolveModelForJob,
@@ -264,6 +262,7 @@ export async function runImageJobWithDeps(
   let fileSaveMs: number | undefined;
   let logContext: {
     provider?: ProviderId;
+    adapterId?: ProviderAdapterId;
     model?: string;
     providerConfigSource?: ProviderSource;
     baseUrlHost?: string;
@@ -282,12 +281,17 @@ export async function runImageJobWithDeps(
     const input = parseJobRequest(job.requestJson);
     await deps.markBatchItemRunning(job.userId, job.batchId, job.batchItemId);
     const resolvedProvider = await getResolvedProviderConfig(job.userId, input.provider);
+    if (!resolvedProvider.enabled) {
+      throw new AppError("This provider is disabled.", 503);
+    }
+
     if (!resolvedProvider.apiKey) {
       throw new AppError("This provider has no API key configured.", 503);
     }
 
     logContext = {
       provider: input.provider,
+      adapterId: resolvedProvider.adapterId,
       model: input.modelId,
       providerConfigSource: resolvedProvider.source,
       baseUrlHost: getBaseUrlHost(resolvedProvider.baseUrl),
@@ -299,20 +303,15 @@ export async function runImageJobWithDeps(
       referenceImageCount: input.sourceImageIds.length + input.uploadImageIds.length
     };
 
-    const model = resolveModelForJob(input) ?? validateModelRequest(input.provider, input.modelId, input.mode, resolvedProvider);
+    const model = resolveModelForJob(input, resolvedProvider) ?? validateModelRequest(input.provider, input.modelId, input.mode, resolvedProvider);
 
     if (!modelSupports(model, input.mode)) {
       throw new AppError("This model does not support that mode.");
     }
 
-    const allowCustomSize = input.provider === "openai" && isOpenAiCompatibleGateway(resolvedProvider);
-    if (input.provider === "openai" && !allowCustomSize) {
-      assertOfficialOpenAiSize(input.size);
-    }
+    assertModelOptions(model, { ...input, allowCustomSize: Boolean(model.supportsCustomSize) });
 
-    assertModelOptions(model, { ...input, allowCustomSize });
-
-    const provider = getProvider(input.provider);
+    const provider = getProvider(input.provider, resolvedProvider.adapterId);
     const inputImages = await loadInputImages(job.userId, input.sourceImageIds, input.uploadImageIds);
     const upstreamStartedAt = Date.now();
     const result = await provider.createImage({
@@ -372,7 +371,7 @@ export async function runImageJobWithDeps(
       parentId: input.sourceImageIds.length === 1 ? input.sourceImageIds[0] : undefined,
       batchId: job.batchId ?? undefined,
       batchItemId: job.batchItemId ?? undefined,
-      providerMeta: result.providerMeta
+      providerMeta: result.providerMeta && provider.sanitizeMeta ? provider.sanitizeMeta(result.providerMeta) : result.providerMeta
     });
 
     await deps.markBatchItemSucceeded(job.userId, job.batchId, job.batchItemId, resultId);

@@ -43,13 +43,20 @@ export type HistoryResponse = {
 export type CatalogResponse = {
   providers: Array<{
     provider: ProviderId;
+    providerId?: string;
+    adapterId?: string;
     label: string;
     configured: boolean;
+    enabled?: boolean;
+    source?: "user" | "platform" | "env" | "none";
+    defaultModel?: string;
+    healthStatus?: string;
     supportsCustomSize?: boolean;
     baseUrlConfigured?: boolean;
   }>;
   models: Array<{
     provider: ProviderId;
+    adapterId?: string;
     modelId: string;
     label: string;
     description: string;
@@ -62,6 +69,10 @@ export type CatalogResponse = {
     qualityOptions?: string[];
     inputFidelityOptions?: string[];
     supportsCustomSize?: boolean;
+    maxPromptLength?: number;
+    maxReferenceImages?: number;
+    referenceInputTransport?: string[];
+    estimatedCostUnits?: number;
   }>;
 };
 
